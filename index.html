@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>БУХЛОЧАТ — Официальный хаб</title>
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <h2>Контрольный вопрос</h2>
+            <p>Имя Директора всей этой х..и?</p>
+            <input type="text" id="auth-input" placeholder="Введите имя..." />
+            <button onclick="checkAuth()">Войти в хаб</button>
+
+            <div class="auth-card-divider">
+                <span>или</span>
+            </div>
+
+            <button class="admin-btn" onclick="goToAdmin()">Админ-кабинет</button>
+            <div id="auth-error" class="error-msg">Неверно! Директор расстроится.</div>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <header>
+            <nav class="nav-container">
+                <a href="#" class="logo">БУХЛОЧАТ</a>
+                <ul class="nav-links">
+                    <li><a href="#events-sec">События</a></li>
+                    <li><a href="#timer-sec">До Нёмана</a></li>
+                    <li><a href="#gallery-sec">Галерея</a></li>
+                    <li><a href="#calc-sec">Алкометр</a></li>
+                    <li><a href="#contacts-sec">Контакты</a></li>
+                    <li><a href="#bdays-sec">ДР</a></li>
+                    <li><a href="pages/admin.html" class="admin-link">🔑 Админка</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <div class="container">
+            <div class="hero">
+                <h1>БУХЛОЧАТ</h1>
+                <p>Официальный хаб душевных встреч и хорошего настроения</p>
+            </div>
+
+            <section id="events-sec">
+                <h2>Ближайшие события</h2>
+                <div id="events-list">Загрузка событий...</div>
+            </section>
+
+            <section id="timer-sec">
+                <h2>До выезда на Нёман осталось</h2>
+                <div class="timer-display">
+                    <div class="timer-block"><div class="timer-amount" id="days">00</div><div class="timer-label">дн</div></div>
+                    <div class="timer-block"><div class="timer-amount" id="hours">00</div><div class="timer-label">ч</div></div>
+                    <div class="timer-block"><div class="timer-amount" id="minutes">00</div><div class="timer-label">мин</div></div>
+                    <div class="timer-block"><div class="timer-amount" id="seconds">00</div><div class="timer-label">сек</div></div>
+                </div>
+
+                <div class="datepicker-container">
+                    <label for="destination-date">Настроить свою дату выезда:</label>
+                    <input type="date" id="destination-date" onchange="updateCustomDate(this.value)" />
+                </div>
+            </section>
+
+            <section id="gallery-sec">
+                <h2>Галерея выездов</h2>
+                <div class="gallery-container">
+                    <div style="text-align: center; color: #a1a1aa;">
+                        <p>📸 Фото из выездов загружаются в папку /gallery</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="calc-sec">
+                <h2>Калькулятор закупки алкоголя</h2>
+                <div class="calc-grid">
+                    <div class="calc-inputs">
+                        <label>Количество участников:</label>
+                        <input type="number" id="calc-people" value="10" min="1" oninput="calculateAlcohol()" />
+
+                        <label>Интенсивность отдыха:</label>
+                        <select id="calc-intensity" onchange="calculateAlcohol()">
+                            <option value="light">Культурно посидеть (Лайт)</option>
+                            <option value="medium" selected>Нормальный выезд (Медиум)</option>
+                            <option value="hard">В сопли / До потери пульса (Хард)</option>
+                        </select>
+
+                        <label>Длительность (дней):</label>
+                        <input type="number" id="calc-days" value="2" min="1" oninput="calculateAlcohol()" />
+                    </div>
+                    <div class="calc-results">
+                        <h3>Рекомендуемая закупка:</h3>
+                        <div class="calc-item"><span>Крепкий алко (водка/виски):</span> <span class="calc-val" id="res-hard">0 л</span></div>
+                        <div class="calc-item"><span>Легкий алко (вино/шампань):</span> <span class="calc-val" id="res-light">0 л</span></div>
+                        <div class="calc-item"><span>Пивас (полирнуть/утро):</span> <span class="calc-val" id="res-beer">0 л</span></div>
+                        <div class="calc-item"><span>Запивон / Вода:</span> <span class="calc-val" id="res-water">0 л</span></div>
+                        <div class="calc-item"><span>Уголь (мешки 3кг):</span> <span class="calc-val" id="res-coal">0 шт</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="contacts-sec">
+                <h2>Контакты и Линки</h2>
+                <div class="contacts-grid">
+                    <div class="contact-group">
+                        <h3>Ответственные за сбор</h3>
+                        <div class="contact-line"><strong>Алкоматъ:</strong> Лена</div>
+                        <div class="contact-line"><strong>Главный по логистике:</strong> Артемий</div>
+                    </div>
+                    <div class="contact-group">
+                        <h3>Ответственные за кухню</h3>
+                        <div class="contact-line"><strong>Админ по мясу:</strong> Твой гинеколог</div>
+                        <div class="contact-line"><strong>Картоха & Альтер Эго:</strong> Сергеич</div>
+                        <div class="contact-line"><strong>Катя:</strong> но ее знают как Аучар</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="bdays-sec">
+                <h2>Дни Рождения</h2>
+                <p>Загрузка дней рождения...</p>
+            </section>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

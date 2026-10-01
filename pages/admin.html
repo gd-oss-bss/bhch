@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Админка БУХЛОЧАТ</title>
+    <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="topbar hidden" id="topbar">
+            <a href="../index.html" class="logo">БУХЛОЧАТ</a>
+            <div class="topbar-actions">
+                <a href="../index.html" class="btn secondary">На главную</a>
+                <button class="btn secondary" onclick="logoutAdmin()">Выйти</button>
+            </div>
+        </div>
+
+        <div id="auth-block">
+            <div class="auth-box">
+                <h2>Админка</h2>
+                <p>Введите пароль администратора</p>
+                <input type="password" id="admin-password" placeholder="Пароль..." />
+                <button class="btn" style="width:100%;" onclick="checkAdminLogin()">Войти</button>
+                <div id="admin-error" class="error-msg">Неверный пароль.</div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn secondary" style="flex: 1;" onclick="goBackToHub()">← Назад на главную</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboard" class="dashboard hidden">
+            <section class="panel">
+                <h3>Добавить событие</h3>
+                <input type="text" id="event-title" placeholder="Название события" />
+                <input type="date" id="event-date" />
+                <input type="time" id="event-time" />
+                <input type="text" id="event-location" placeholder="Место" />
+                <textarea id="event-description" placeholder="Описание события"></textarea>
+                <input type="number" id="event-limit" value="30" min="1" placeholder="Лимит участников" />
+
+                <div class="admin-actions">
+                    <button type="button" onclick="saveEvent()">Сохранить событие</button>
+                    <button type="button" class="secondary" onclick="resetForm()">Очистить</button>
+                </div>
+
+                <div class="admin-actions" style="margin-top: 20px;">
+                    <button type="button" class="secondary" onclick="downloadEventsJson()">📥 Скачать events.json</button>
+                    <input id="import-events-input" type="file" accept="application/json" class="hidden" onchange="importEventsJson(this)" />
+                    <button type="button" class="secondary" onclick="document.getElementById('import-events-input').click()">📤 Импорт JSON</button>
+                </div>
+
+                <div class="admin-actions" style="margin-top: 20px; gap: 10px;">
+                    <button type="button" class="success" onclick="saveEventsToGitHub()">💾 Сохранить в GitHub</button>
+                    <button type="button" class="info" onclick="loadEventsFromGitHub()">🔄 Загрузить из GitHub</button>
+                </div>
+                <div id="github-status" style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: #10b981;"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Список событий</h3>
+                <div id="events-list" class="event-list"></div>
+            </section>
+
+            <section class="panel" style="grid-column:1 / -1;">
+                <h3>Сменить пароль</h3>
+                <div class="password-form">
+                    <input type="password" id="current-password" placeholder="Текущий пароль" />
+                    <input type="password" id="new-password" placeholder="Новый пароль" />
+                    <input type="password" id="confirm-password" placeholder="Подтвердите новый пароль" />
+                    <div class="admin-actions">
+                        <button type="button" onclick="changeAdminPassword()">Сохранить новый пароль</button>
+                    </div>
+                    <div id="password-message" class="status-message hidden"></div>
+                    <div id="password-github-status" style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: #10b981;"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="../js/admin.js"></script>
+</body>
+</html>
