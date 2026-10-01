@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>БУХЛОЧАТ — Официальный хаб</title>
     <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/upcoming.css" />
 </head>
 <body>
     <div id="auth-overlay">
@@ -62,8 +63,9 @@
                 </div>
 
                 <div class="datepicker-container">
-                    <label for="destination-date">Настроить свою дату выезда:</label>
-                    <input type="date" id="destination-date" onchange="updateCustomDate(this.value)" />
+                    <label for="destination-date-display">Настроить свою дату выезда:</label>
+                    <input type="text" id="destination-date-display" placeholder="ДД.MM.YYYY" />
+                    <input type="date" id="destination-date" style="display:none;" />
                 </div>
             </section>
 

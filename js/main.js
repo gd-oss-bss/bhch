@@ -18,8 +18,6 @@ const DEFAULT_EVENTS = [
     }
 ];
 
-// Праздники показываются в блоке ближайших событий только в день праздника
-// или за три дня до него. Даты ежегодные, поэтому год подставляется автоматически.
 const HOLIDAYS = [
     { date: '01-01', name: 'Новый год' },
     { date: '02-23', name: 'День защитника Отечества' },
@@ -62,6 +60,23 @@ function goToAdmin() {
     window.location.href = 'pages/admin.html';
 }
 
+// Форматирование даты из YYYY-MM-DD в DD.MM.YYYY
+function formatDateDisplay(dateString) {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${day}.${month}.${year}`;
+}
+
+// Парсинг даты из DD.MM.YYYY в YYYY-MM-DD
+function parseDateInput(displayString) {
+    if (!displayString) return '';
+    const parts = displayString.split('.');
+    if (parts.length !== 3) return '';
+    const [day, month, year] = parts;
+    if (!/^\d{2}$/.test(day) || !/^\d{2}$/.test(month) || !/^\d{4}$/.test(year)) return '';
+    return `${year}-${month}-${day}`;
+}
+
 window.onload = function() {
     const authInput = document.getElementById('auth-input');
     if (authInput) {
@@ -73,13 +88,27 @@ window.onload = function() {
         });
     }
 
+    const dateInput = document.getElementById('destination-date');
+    const dateDisplay = document.getElementById('destination-date-display');
+    
+    if (dateDisplay && dateInput) {
+        dateDisplay.addEventListener('input', (e) => {
+            const parsed = parseDateInput(e.target.value);
+            if (parsed) {
+                dateInput.value = parsed;
+                updateCustomDate(parsed);
+            }
+        });
+    }
+
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
     }
+    
     const today = new Date().toISOString().split('T')[0];
-    const destinationDateInput = document.getElementById('destination-date');
-    if (destinationDateInput) destinationDateInput.min = today;
+    if (dateInput) dateInput.min = today;
+    
     initPage();
 };
 
@@ -95,8 +124,11 @@ function initPage() {
         savedDate = `${currentYear}-07-17`;
     }
 
-    const destinationDateInput = document.getElementById('destination-date');
-    if (destinationDateInput) destinationDateInput.value = savedDate;
+    const dateInput = document.getElementById('destination-date');
+    const dateDisplay = document.getElementById('destination-date-display');
+    
+    if (dateInput) dateInput.value = savedDate;
+    if (dateDisplay) dateDisplay.value = formatDateDisplay(savedDate);
 
     targetDateString = savedDate + 'T00:00:00';
     startTimer();
@@ -109,6 +141,12 @@ function updateCustomDate(val) {
     if (!val) return;
     localStorage.setItem('buhlo_target_date', val);
     targetDateString = val + 'T00:00:00';
+    
+    const dateDisplay = document.getElementById('destination-date-display');
+    if (dateDisplay) {
+        dateDisplay.value = formatDateDisplay(val);
+    }
+    
     startTimer();
 }
 
@@ -116,26 +154,37 @@ function startTimer() {
     if (countdownInterval) clearInterval(countdownInterval);
 
     function tick() {
-        const target = new Date(targetDateString).getTime();
-        const difference = target - new Date().getTime();
+        try {
+            const target = new Date(targetDateString);
+            const now = new Date();
+            const difference = target.getTime() - now.getTime();
 
-        if (difference <= 0) {
-            ['days', 'hours', 'minutes', 'seconds'].forEach(id => {
-                document.getElementById(id).innerText = '00';
-            });
-            clearInterval(countdownInterval);
-            return;
+            if (difference <= 0) {
+                ['days', 'hours', 'minutes', 'seconds'].forEach(id => {
+                    const elem = document.getElementById(id);
+                    if (elem) elem.innerText = '00';
+                });
+                if (countdownInterval) clearInterval(countdownInterval);
+                return;
+            }
+
+            const d = Math.floor(difference / (1000 * 60 * 60 * 24));
+            const h = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((difference % (1000 * 60)) / 1000);
+
+            const daysElem = document.getElementById('days');
+            const hoursElem = document.getElementById('hours');
+            const minutesElem = document.getElementById('minutes');
+            const secondsElem = document.getElementById('seconds');
+
+            if (daysElem) daysElem.innerText = d < 10 ? '0' + d : d;
+            if (hoursElem) hoursElem.innerText = h < 10 ? '0' + h : h;
+            if (minutesElem) minutesElem.innerText = m < 10 ? '0' + m : m;
+            if (secondsElem) secondsElem.innerText = s < 10 ? '0' + s : s;
+        } catch (e) {
+            console.error('Timer error:', e);
         }
-
-        const d = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const h = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const m = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((difference % (1000 * 60)) / 1000);
-
-        document.getElementById('days').innerText = d < 10 ? '0' + d : d;
-        document.getElementById('hours').innerText = h < 10 ? '0' + h : h;
-        document.getElementById('minutes').innerText = m < 10 ? '0' + m : m;
-        document.getElementById('seconds').innerText = s < 10 ? '0' + s : s;
     }
 
     tick();
@@ -345,7 +394,7 @@ function renderEvents() {
                 <div class="event-actions">
                     <button type="button" class="secondary-btn" onclick="showRegistrationForm(${event.id})">Записаться</button>
                 </div>
-                ${registered ? '<div class="registered-badge">Вы уже ��аписаны</div>' : ''}
+                ${registered ? '<div class="registered-badge">Вы уже записаны</div>' : ''}
                 <div class="registration-form hidden" id="form-${event.id}">
                     <input type="text" id="reg-name-${event.id}" placeholder="Ваше имя*" />
                     <input type="text" id="reg-contact-${event.id}" placeholder="Telegram / телефон" />
