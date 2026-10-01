@@ -333,12 +333,22 @@ function renderUpcomingHighlights() {
     if (upcomingEvents[0]) {
         items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${upcomingEvents[0].title} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
     }
-    if (birthday) {
-        items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthday.nextDate.toISOString().slice(0, 10))} — ${birthday.name}</strong></div>`);
+  //  if (birthday) {
+    //    items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthday.nextDate.toISOString().slice(0, 10))} — ${birthday.name}</strong></div>`);
+  //  }
+        if (birthday) {
+        const birthdayDateString = birthday.nextDate.toLocaleDateString('sv');
+        items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthdayDateString)} — ${birthday.name}</strong></div>`);
     }
+  //  if (holiday) {
+   //     const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
+  //      items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holiday.nextDate.toISOString().slice(0, 10))}</strong></div>`);
+  //  }
+     // ИСПРАВЛЕНО: здесь тоже убран баг со сдвигом даты праздника
     if (holiday) {
+        const holidayDateString = holiday.nextDate.toLocaleDateString('sv');
         const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
-        items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holiday.nextDate.toISOString().slice(0, 10))}</strong></div>`);
+        items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holidayDateString)}</strong></div>`);
     }
 
     container.innerHTML = items.length ? items.join('') : '<p class="muted-message">Ближайших событий пока нет.</p>';
