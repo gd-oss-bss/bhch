@@ -336,7 +336,7 @@ function getUpcomingHoliday() {
     return HOLIDAYS
         .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
         .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
-        .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
+        .filter(holiday => holiday.days >= 0 && holiday.days <= 15)
         .sort((a, b) => a.nextDate - b.nextDate)[0];
 }
 
