@@ -34,7 +34,7 @@ const HOLIDAYS = [
      { date: '08-15', name: 'Фестиваль Тачки Пікнік и Мотошоу FERZ (Лида)' }, 
      { date: '08-28', name: 'Лидский байк-фестиваль (Lida Bike Fest)' }, 
      { date: '09-19', name: 'Официальное закрытие мотосезона в Беларуси' }, 
-     { date: '10-04', name: 'Мото-встреча OCTOBER DAY (Route P98)' }
+     { date: '10-17', name: 'Мото-встреча OCTOBER DAY (Route P98)' }
 ];
 
 let appEvents = [];
