@@ -317,38 +317,16 @@ function getNextBirthday() {
         .sort((a, b) => a.nextDate - b.nextDate)[0];
 }
 
-//function getUpcomingHoliday() {
-//    const today = new Date();
-//    today.setHours(0, 0, 0, 0);
-//    return HOLIDAYS
-//        .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
-//        .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
-//        .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
-//        .sort((a, b) => a.nextDate - b.nextDate)[0];
- //}
-
-function getUpcomingHoliday() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    return HOLIDAYS
-        .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
-        .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
-        .filter(holiday => {
-            // Проверяем, является ли событие мотоциклетным
-            // (ищем смайлик байка или слово "мото" в названии)
-            const isMotoEvent = holiday.name..toLowerCas().includes('фест') || holiday.name.toLowerCase().includes('мото');
-            
-            if (isMotoEvent) {
-                // Мото-события показываем за 14 дней
-                return holiday.days >= 0 && holiday.days <= 14;
-            } else {
-                // Обычные праздники показываем за 3 дня, как и раньше
-                return holiday.days >= 0 && holiday.days <= 3;
-            }
-        })
-        .sort((a, b) => a.nextDate - b.nextDate)[0]; // Возвращает самый ближайший из прошедших фильтр
+ function getUpcomingHoliday() {
+   const today = new Date();
+   today.setHours(0, 0, 0, 0);
+   return HOLIDAYS
+       .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
+       .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
+       .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
+       .sort((a, b) => a.nextDate - b.nextDate)[0];
 }
+
 
 function renderUpcomingHighlights() {
     const container = document.getElementById('upcoming-highlights');
