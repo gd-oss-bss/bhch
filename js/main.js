@@ -3,7 +3,6 @@ const EVENTS_KEY = 'buhlo_events_data';
 const BIRTHDAYS_KEY = 'buhlo_birthdays_data';
 const REGISTRATIONS_KEY = 'buhlo_registrations';
 
-
 const ENCRYPTED_ADMIN_PASSWORD = 'Oy_hy}hyq|tj\u0003';
 
 const DEFAULT_EVENTS = [
@@ -19,10 +18,22 @@ const DEFAULT_EVENTS = [
     }
 ];
 
+// Праздники показываются в блоке ближайших событий только в день праздника
+// или за три дня до него. Даты ежегодные, поэтому год подставляется автоматически.
+const HOLIDAYS = [
+    { date: '01-01', name: 'Новый год' },
+    { date: '02-23', name: 'День защитника Отечества' },
+    { date: '03-08', name: 'Международный женский день' },
+    { date: '05-01', name: 'Праздник Весны и Труда' },
+    { date: '05-09', name: 'День Победы' },
+    { date: '06-12', name: 'День России' },
+    { date: '11-04', name: 'День народного единства' }
+];
+
 let appEvents = [];
 let countdownInterval;
 let targetDateString = '';
-let isAuthenticated = false; // in-memory auth flag (session only)
+let isAuthenticated = false;
 let appBirthdays = [];
 
 function simpleDecrypt(encrypted) {
@@ -36,7 +47,7 @@ function simpleDecrypt(encrypted) {
 function checkAuth() {
     const val = document.getElementById('auth-input').value.trim().toLowerCase();
     if (val === HUB_ANSWER.toLowerCase()) {
-        isAuthenticated = true; // store only in memory, not in cookies or localStorage
+        isAuthenticated = true;
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
         document.getElementById('auth-input').value = '';
@@ -52,7 +63,16 @@ function goToAdmin() {
 }
 
 window.onload = function() {
-    // Session-only authentication: if user closes/refreshes, they need to re-auth
+    const authInput = document.getElementById('auth-input');
+    if (authInput) {
+        authInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                checkAuth();
+            }
+        });
+    }
+
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
@@ -64,7 +84,6 @@ window.onload = function() {
 };
 
 window.onbeforeunload = function() {
-    // Clear auth on page unload to prevent auto-login
     isAuthenticated = false;
 };
 
@@ -72,18 +91,12 @@ function initPage() {
     let savedDate = localStorage.getItem('buhlo_target_date');
     if (!savedDate) {
         const now = new Date();
-        let currentYear = now.getFullYear();
-        let defaultTarget = new Date(`${currentYear}-07-17T00:00:00`);
-        if (now > defaultTarget) {
-            defaultTarget = new Date(`${currentYear}-07-17T00:00:00`);
-        }
-        savedDate = defaultTarget.toISOString().split('T')[0];
+        const currentYear = now.getFullYear();
+        savedDate = `${currentYear}-07-17`;
     }
 
     const destinationDateInput = document.getElementById('destination-date');
-    if (destinationDateInput) {
-        destinationDateInput.value = savedDate;
-    }
+    if (destinationDateInput) destinationDateInput.value = savedDate;
 
     targetDateString = savedDate + 'T00:00:00';
     startTimer();
@@ -104,14 +117,12 @@ function startTimer() {
 
     function tick() {
         const target = new Date(targetDateString).getTime();
-        const now = new Date().getTime();
-        const difference = target - now;
+        const difference = target - new Date().getTime();
 
         if (difference <= 0) {
-            document.getElementById('days').innerText = '00';
-            document.getElementById('hours').innerText = '00';
-            document.getElementById('minutes').innerText = '00';
-            document.getElementById('seconds').innerText = '00';
+            ['days', 'hours', 'minutes', 'seconds'].forEach(id => {
+                document.getElementById(id).innerText = '00';
+            });
             clearInterval(countdownInterval);
             return;
         }
@@ -147,17 +158,11 @@ function calculateAlcohol() {
         coeffHard = 0.45; coeffLight = 0.4; coeffBeer = 1.2; coeffWater = 2.5;
     }
 
-    const totalHard = (people * coeffHard * days).toFixed(1);
-    const totalLight = (people * coeffLight * days).toFixed(1);
-    const totalBeer = (people * coeffBeer * days).toFixed(1);
-    const totalWater = (people * coeffWater * days).toFixed(1);
-    const totalCoal = Math.ceil((people * days) / 5);
-
-    document.getElementById('res-hard').innerText = totalHard + ' л';
-    document.getElementById('res-light').innerText = totalLight + ' л';
-    document.getElementById('res-beer').innerText = totalBeer + ' л';
-    document.getElementById('res-water').innerText = totalWater + ' л';
-    document.getElementById('res-coal').innerText = totalCoal + ' шт';
+    document.getElementById('res-hard').innerText = (people * coeffHard * days).toFixed(1) + ' л';
+    document.getElementById('res-light').innerText = (people * coeffLight * days).toFixed(1) + ' л';
+    document.getElementById('res-beer').innerText = (people * coeffBeer * days).toFixed(1) + ' л';
+    document.getElementById('res-water').innerText = (people * coeffWater * days).toFixed(1) + ' л';
+    document.getElementById('res-coal').innerText = Math.ceil((people * days) / 5) + ' шт';
 }
 
 function getSavedEvents() {
@@ -195,29 +200,83 @@ async function loadEvents() {
 }
 
 function loadBirthdays() {
-    try {
-        const response = fetch('data/birthdays.json')
-            .then(r => r.ok ? r.json() : null)
-            .then(data => {
-                if (data && Array.isArray(data.birthdays)) {
-                    appBirthdays = data.birthdays;
-                    localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
-                } else {
-                    const saved = localStorage.getItem(BIRTHDAYS_KEY);
-                    appBirthdays = saved ? JSON.parse(saved) : [];
-                }
-                renderBirthdays();
-            })
-            .catch(() => {
+    fetch('data/birthdays.json')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (data && Array.isArray(data.birthdays)) {
+                appBirthdays = data.birthdays;
+                localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
+            } else {
                 const saved = localStorage.getItem(BIRTHDAYS_KEY);
                 appBirthdays = saved ? JSON.parse(saved) : [];
-                renderBirthdays();
-            });
-    } catch (error) {
-        const saved = localStorage.getItem(BIRTHDAYS_KEY);
-        appBirthdays = saved ? JSON.parse(saved) : [];
-        renderBirthdays();
+            }
+            renderBirthdays();
+            renderUpcomingHighlights();
+        })
+        .catch(() => {
+            const saved = localStorage.getItem(BIRTHDAYS_KEY);
+            appBirthdays = saved ? JSON.parse(saved) : [];
+            renderBirthdays();
+            renderUpcomingHighlights();
+        });
+}
+
+function getNextAnnualDate(monthDay, from = new Date()) {
+    const [month, day] = monthDay.split('-').map(Number);
+    let date = new Date(from.getFullYear(), month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    const today = new Date(from);
+    today.setHours(0, 0, 0, 0);
+    if (date < today) date = new Date(from.getFullYear() + 1, month - 1, day);
+    return date;
+}
+
+function daysBetween(from, to) {
+    return Math.round((to - from) / (1000 * 60 * 60 * 24));
+}
+
+function getNextBirthday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return appBirthdays
+        .map(bd => ({ ...bd, nextDate: getNextAnnualDate(bd.date.slice(5), today) }))
+        .sort((a, b) => a.nextDate - b.nextDate)[0];
+}
+
+function getUpcomingHoliday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return HOLIDAYS
+        .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
+        .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
+        .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
+        .sort((a, b) => a.nextDate - b.nextDate)[0];
+}
+
+function renderUpcomingHighlights() {
+    const container = document.getElementById('upcoming-highlights');
+    if (!container) return;
+
+    const birthday = getNextBirthday();
+    const holiday = getUpcomingHoliday();
+    const upcomingEvents = appEvents
+        .map(event => ({ ...event, eventDate: new Date(`${event.date}T00:00:00`) }))
+        .filter(event => !Number.isNaN(event.eventDate.getTime()) && event.eventDate >= new Date())
+        .sort((a, b) => a.eventDate - b.eventDate);
+
+    const items = [];
+    if (upcomingEvents[0]) {
+        items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${upcomingEvents[0].title} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
     }
+    if (birthday) {
+        items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthday.nextDate.toISOString().slice(0, 10))} — ${birthday.name}</strong></div>`);
+    }
+    if (holiday) {
+        const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
+        items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holiday.nextDate.toISOString().slice(0, 10))}</strong></div>`);
+    }
+
+    container.innerHTML = items.length ? items.join('') : '<p class="muted-message">Ближайших событий пока нет.</p>';
 }
 
 function renderBirthdays() {
@@ -229,33 +288,30 @@ function renderBirthdays() {
         return;
     }
 
-    // Group by month
-    const months = {};
-    appBirthdays.forEach(bd => {
-        const date = new Date(bd.date + 'T00:00:00');
-        const monthName = date.toLocaleDateString('ru-RU', { month: 'long' });
-        if (!months[monthName]) months[monthName] = [];
-        months[monthName].push(bd);
-    });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sorted = appBirthdays
+        .map(bd => ({ ...bd, nextDate: getNextAnnualDate(bd.date.slice(5), today) }))
+        .sort((a, b) => a.nextDate - b.nextDate);
 
-    let html = '<h2>Дни Рождения</h2>';
-    Object.keys(months).forEach(monthName => {
-        html += `<h3>${monthName.charAt(0).toUpperCase() + monthName.slice(1)}</h3><ul class="birthday-list">`;
-        months[monthName].forEach(bd => {
-            const date = new Date(bd.date + 'T00:00:00');
-            const dayMonth = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-            html += `<li class="birthday-item">🎉 ${dayMonth} — ${bd.name}</li>`;
-        });
-        html += '</ul>';
-    });
+    const renderItem = bd => {
+        const dayMonth = new Date(bd.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+        return `<li class="birthday-item">🎉 ${dayMonth} — ${bd.name}</li>`;
+    };
 
+    const firstFour = sorted.slice(0, 4).map(renderItem).join('');
+    const remaining = sorted.slice(4).map(renderItem).join('');
+    let html = '<h2>Дни Рождения</h2><ul class="birthday-list birthday-list-short">' + firstFour + '</ul>';
+    if (remaining) {
+        html += `<details class="birthday-more"><summary>Показать остальные (${sorted.length - 4})</summary><ul class="birthday-list">${remaining}</ul></details>`;
+    }
     bdaysSection.innerHTML = html;
 }
 
 function formatDate(dateString) {
     if (!dateString) return 'Дата не указана';
-    const date = new Date(dateString + 'T12:00:00');
-    if (Number.isNaN(date.getTime())) return dateString;
+    const date = dateString instanceof Date ? dateString : new Date(dateString + 'T12:00:00');
+    if (Number.isNaN(date.getTime())) return String(dateString);
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -265,6 +321,7 @@ function renderEvents() {
 
     if (!appEvents.length) {
         eventsList.innerHTML = '<p>События пока не добавлены.</p>';
+        renderUpcomingHighlights();
         return;
     }
 
@@ -288,7 +345,7 @@ function renderEvents() {
                 <div class="event-actions">
                     <button type="button" class="secondary-btn" onclick="showRegistrationForm(${event.id})">Записаться</button>
                 </div>
-                ${registered ? '<div class="registered-badge">Вы уже записаны</div>' : ''}
+                ${registered ? '<div class="registered-badge">Вы уже ��аписаны</div>' : ''}
                 <div class="registration-form hidden" id="form-${event.id}">
                     <input type="text" id="reg-name-${event.id}" placeholder="Ваше имя*" />
                     <input type="text" id="reg-contact-${event.id}" placeholder="Telegram / телефон" />
@@ -301,17 +358,17 @@ function renderEvents() {
             </article>
         `;
     }).join('');
+    renderUpcomingHighlights();
 }
 
 function showRegistrationForm(eventId) {
     const form = document.getElementById(`form-${eventId}`);
-    if (!form) return;
-    form.classList.toggle('hidden');
+    if (form) form.classList.toggle('hidden');
 }
 
 function hasUserRegistered(eventId) {
     const registrations = JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || '{}');
-    return !!(registrations[eventId]);
+    return !!registrations[eventId];
 }
 
 function submitRegistration(eventId) {
@@ -335,13 +392,7 @@ function submitRegistration(eventId) {
         return;
     }
 
-    const entry = {
-        name,
-        contact: contact || 'не указан',
-        notes: notes || '',
-        registeredAt: new Date().toISOString()
-    };
-
+    const entry = { name, contact: contact || 'не указан', notes: notes || '', registeredAt: new Date().toISOString() };
     event.participants.push(entry);
 
     const registrations = JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || '{}');
