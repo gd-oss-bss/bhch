@@ -118,10 +118,21 @@ window.onbeforeunload = function() {
 
 function initPage() {
     let savedDate = localStorage.getItem('buhlo_target_date');
+    
     if (!savedDate) {
         const now = new Date();
         const currentYear = now.getFullYear();
-        savedDate = `${currentYear}-07-17`;
+        // Проверяем, прошла ли дата 17 июля этого года
+        const julyDate = new Date(`${currentYear}-07-17`);
+        
+        if (now > julyDate) {
+            // Если дата в прошлом, ставим на следующий год
+            savedDate = `${currentYear + 1}-07-17`;
+        } else {
+            // Иначе на эту дату
+            savedDate = `${currentYear}-07-17`;
+        }
+        localStorage.setItem('buhlo_target_date', savedDate);
     }
 
     const dateInput = document.getElementById('destination-date');
@@ -131,6 +142,7 @@ function initPage() {
     if (dateDisplay) dateDisplay.value = formatDateDisplay(savedDate);
 
     targetDateString = savedDate + 'T00:00:00';
+    console.log('Timer initialized with:', targetDateString, 'Current:', new Date());
     startTimer();
     calculateAlcohol();
     loadEvents();
@@ -147,6 +159,7 @@ function updateCustomDate(val) {
         dateDisplay.value = formatDateDisplay(val);
     }
     
+    console.log('Date updated to:', targetDateString);
     startTimer();
 }
 
@@ -159,11 +172,14 @@ function startTimer() {
             const now = new Date();
             const difference = target.getTime() - now.getTime();
 
+            console.log('Tick - Target:', target, 'Now:', now, 'Diff:', difference);
+
             if (difference <= 0) {
                 ['days', 'hours', 'minutes', 'seconds'].forEach(id => {
                     const elem = document.getElementById(id);
                     if (elem) elem.innerText = '00';
                 });
+                console.log('Timer reached 00');
                 if (countdownInterval) clearInterval(countdownInterval);
                 return;
             }
