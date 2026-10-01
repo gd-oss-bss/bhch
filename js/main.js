@@ -21,15 +21,15 @@ const DEFAULT_EVENTS = [
 const HOLIDAYS = [
     // --- ГОСУДАРСТВЕННЫЕ ПРАЗДНИКИ И ВЫХОДНЫЕ ДНИ В РБ ---
     { date: '01-01', name: 'Новый год' },
-    { date: '01-02', name: 'Новый год (второй день)' }, // Официальный выходной в РБ
+    { date: '01-02', name: 'Новый год (второй день)' }, 
     { date: '01-07', name: 'Рождество Христово (православное)' },
     { date: '02-23', name: 'День защитников Отечества' },
     { date: '03-08', name: 'Международный женский день' },
-    { date: '04-21', name: 'Радуница' }, // Дата на 2026 год, день поминовения усопших
+    { date: '04-21', name: 'Радуница' }, 
     { date: '05-01', name: 'Праздник Труда' },
     { date: '05-09', name: 'День Победы' },
     { date: '07-03', name: 'День Независимости Республики Беларусь' },
-    { date: '11-04', name: 'День народного единства (РФ)' }, // Оставлен из вашего базового списка
+    { date: '11-04', name: 'День народного единства (РФ)' }, 
     { date: '11-07', name: 'День Октябрьской революции' },
     { date: '12-25', name: 'Рождество Христово (католическое)' },
 
@@ -37,16 +37,16 @@ const HOLIDAYS = [
     { date: '07-06', name: 'Купалье (Ночь на Ивана Купалу)' },
 
     // --- МОТОПРАЗДНИКИ И КРУПНЕЙШИЕ БАЙК-ФЕСТИВАЛИ В БЕЛАРУСИ ---
-    { date: '04-18', name: '🏍️ Республиканское открытие мотосезона (Минск)' }, // Главный старт сезона 1AK
-    { date: '05-16', name: '🔥 Международный день барбекю (День барбекю на байке)' }, // Тематический инфоповод
-    { date: '05-29', name: '🎸 Мотофестиваль «MotoPovodBrest»' (база «Орлёнок»)' }, // Легендарный брестский слет
-    { date: '06-12', name: '🌲 Мотофестиваль «Village Party» (Беловежская пуща)' }, // Уютный байк-фест в Щербах
-    { date: '06-26', name: '⛺ Байк-рок фестиваль «MotoFestWest» (Барановичи)' }, // Слет на озере Гать
-    { date: '07-24', name: '🎵 Фестиваль «Brest Motor Music Weekend»' }, // Музыкально-моторный уикенд в Бресте
-    { date: '08-15', name: '🏎️ Фестиваль «Тачки Пікнік» и Мотошоу FERZ (Лида)' }, // Крупное авто-мото шоу у стен замка
-    { date: '08-28', name: '🛡️ Лидский байк-фестиваль (Lida Bike Fest)' }, // Крупнейший международный мотофест РБ
-    { date: '09-19', name: '🍂 Официальное закрытие мотосезона в Беларуси' }, // Финальный парад и закрытие сезона H.O.G.
-    { date: '10-05', name: '☕ Мото-встреча «OCTOBER DAY» (Route P98)' } // Ламповый финал сезона в мотодеревне
+    { date: '04-18', name: '🏍️ Республиканское открытие мотосезона (Минск)' }, 
+    { date: '05-16', name: '🔥 Международный день барбекю (День барбекю на байке)' }, 
+    { date: '05-29', name: '🎸 Мотофестиваль "MotoPovodBrest" (база Орлёнок)' }, 
+    { date: '06-12', name: '🌲 Мотофестиваль "Village Party" (Беловежская пуща)' }, 
+    { date: '06-26', name: '⛺ Байк-рок фестиваль "MotoFestWest" (Барановичи)' }, 
+    { date: '07-24', name: '🎵 Фестиваль "Brest Motor Music Weekend"' }, 
+    { date: '08-15', name: '🏎️ Фестиваль "Тачки Пікнік" и Мотошоу FERZ (Лида)' }, 
+    { date: '08-28', name: '🛡️ Лидский байк-фестиваль (Lida Bike Fest)' }, 
+    { date: '09-19', name: '🍂 Официальное закрытие мотосезона в Беларуси' }, 
+    { date: '10-04', name: '☕ Мото-встреча "OCTOBER DAY" (Route P98)' }
 ];
 
 let appEvents = [];
@@ -329,14 +329,37 @@ function getNextBirthday() {
         .sort((a, b) => a.nextDate - b.nextDate)[0];
 }
 
+//function getUpcomingHoliday() {
+//    const today = new Date();
+//    today.setHours(0, 0, 0, 0);
+//    return HOLIDAYS
+//        .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
+//        .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
+//        .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
+//        .sort((a, b) => a.nextDate - b.nextDate)[0];
+ //}
+
 function getUpcomingHoliday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
     return HOLIDAYS
         .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
         .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
-        .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
-        .sort((a, b) => a.nextDate - b.nextDate)[0];
+        .filter(holiday => {
+            // Проверяем, является ли событие мотоциклетным
+            // (ищем смайлик байка или слово "мото" в названии)
+            const isMotoEvent = holiday.name..toLowerCas().includes('фест') || holiday.name.toLowerCase().includes('мото');
+            
+            if (isMotoEvent) {
+                // Мото-события показываем за 14 дней
+                return holiday.days >= 0 && holiday.days <= 14;
+            } else {
+                // Обычные праздники показываем за 3 дня, как и раньше
+                return holiday.days >= 0 && holiday.days <= 3;
+            }
+        })
+        .sort((a, b) => a.nextDate - b.nextDate)[0]; // Возвращает самый ближайший из прошедших фильтр
 }
 
 function renderUpcomingHighlights() {
