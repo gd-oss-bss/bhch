@@ -1,4 +1,5 @@
 const HUB_ANSWER = 'лена';
+const HUB_AUTH_KEY = 'buhlo_hub_authenticated';
 const EVENTS_KEY = 'buhlo_events_data';
 const HOLIDAYS_KEY = 'buhlo_holidays_data';
 const BIRTHDAYS_KEY = 'buhlo_birthdays_data';
@@ -38,6 +39,11 @@ function checkAuth() {
     const val = document.getElementById('auth-input').value.trim().toLowerCase();
     if (val === HUB_ANSWER.toLowerCase()) {
         isAuthenticated = true;
+        if (document.getElementById('remember-auth').checked) {
+            localStorage.setItem(HUB_AUTH_KEY, 'true');
+        } else {
+            localStorage.removeItem(HUB_AUTH_KEY);
+        }
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
         document.getElementById('auth-input').value = '';
@@ -93,15 +99,18 @@ window.onload = function() {
         });
     }
 
+    isAuthenticated = localStorage.getItem(HUB_AUTH_KEY) === 'true';
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
+    } else {
+        document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('main-content').style.display = 'block';
+        initPage();
     }
     
     const today = new Date().toISOString().split('T')[0];
     if (dateInput) dateInput.min = today;
-    
-    initPage();
 };
 
 window.onbeforeunload = function() {

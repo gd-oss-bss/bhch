@@ -89,6 +89,25 @@ body {
     font-weight: 500;
 }
 
+.remember-auth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.remember-auth input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
 .auth-card-divider {
     display: flex;
     align-items: center;
