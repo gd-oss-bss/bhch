@@ -1,5 +1,6 @@
 const HUB_ANSWER = 'лена';
 const EVENTS_KEY = 'buhlo_events_data';
+const HOLIDAYS_KEY = 'buhlo_holidays_data';
 const BIRTHDAYS_KEY = 'buhlo_birthdays_data';
 const REGISTRATIONS_KEY = 'buhlo_registrations';
 
@@ -18,30 +19,12 @@ const DEFAULT_EVENTS = [
     }
 ];
 
-const HOLIDAYS = [
-    { date: '01-01', name: 'Новый год' },
-    { date: '02-23', name: 'День защитника Отечества' },
-    { date: '03-08', name: 'Международный женский день' },
-    { date: '05-01', name: 'Праздник Весны и Труда' },
-    { date: '05-09', name: 'День Победы' },
-	 { date: '12-25', name: 'Рождество Христово (католическое)' },
-	 { date: '04-18', name: 'Республиканское открытие мотосезона (Минск)' }, 
-     { date: '05-16', name: 'Международный день барбекю (День барбекю на байке)' }, 
-     { date: '05-29', name: 'Мотофестиваль MotoPovodBrest (база Орлёнок)' }, 
-     { date: '06-12', name: 'Мотофестиваль Village Party (Беловежская пуща)' }, 
-     { date: '06-26', name: 'Байк-рок фестиваль MotoFestWest (Барановичи)' }, 
-     { date: '07-24', name: 'Фестиваль Brest Motor Music Weekend' }, 
-     { date: '08-15', name: 'Фестиваль Тачки Пікнік и Мотошоу FERZ (Лида)' }, 
-     { date: '08-28', name: 'Лидский байк-фестиваль (Lida Bike Fest)' }, 
-     { date: '09-19', name: 'Официальное закрытие мотосезона в Беларуси' }, 
-     { date: '10-17', name: 'Мото-встреча OCTOBER DAY (Route P98)' }
-];
-
 let appEvents = [];
 let countdownInterval;
 let targetDateString = '';
 let isAuthenticated = false;
 let appBirthdays = [];
+let appHolidays = [];
 
 function simpleDecrypt(encrypted) {
     let decrypted = '';
@@ -156,6 +139,7 @@ function initPage() {
     calculateAlcohol();
     loadEvents();
     loadBirthdays();
+    loadHolidays();
 }
 
 function updateCustomDate(val) {
@@ -295,6 +279,30 @@ function loadBirthdays() {
         });
 }
 
+function loadHolidays() {
+    const useCache = () => {
+        try {
+            const saved = localStorage.getItem(HOLIDAYS_KEY);
+            appHolidays = saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            appHolidays = [];
+        }
+        renderUpcomingHighlights();
+    };
+    fetch('data/holidays.json')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (data && Array.isArray(data.holidays)) {
+                appHolidays = data.holidays;
+                localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
+                renderUpcomingHighlights();
+            } else {
+                useCache();
+            }
+        })
+        .catch(useCache);
+}
+
 function getNextAnnualDate(monthDay, from = new Date()) {
     const [month, day] = monthDay.split('-').map(Number);
     let date = new Date(from.getFullYear(), month - 1, day);
@@ -320,10 +328,10 @@ function getNextBirthday() {
  function getUpcomingHoliday() {
    const today = new Date();
    today.setHours(0, 0, 0, 0);
-   return HOLIDAYS
+   return appHolidays
        .map(holiday => ({ ...holiday, nextDate: getNextAnnualDate(holiday.date, today) }))
        .map(holiday => ({ ...holiday, days: daysBetween(today, holiday.nextDate) }))
-       .filter(holiday => holiday.days >= 0 && holiday.days <= 3)
+       .filter(holiday => holiday.days >= 0 && holiday.days <= (holiday.event_type === 'moto' ? 14 : 3))
        .sort((a, b) => a.nextDate - b.nextDate)[0];
 }
 
