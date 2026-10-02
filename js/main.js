@@ -178,12 +178,21 @@ function getNextYearlyEventDate(dateString, today) {
     return null;
 }
 
+function getYearlyEventDisplayStart(dateString) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    const previousMonth = new Date(year, month - 2, 1);
+    const startDay = Math.min(day, new Date(year, month - 1, 0).getDate());
+    previousMonth.setDate(startDay);
+    return getLocalDateString(previousMonth);
+}
+
 function getVisibleEvents(today = new Date()) {
     const todayString = getLocalDateString(today);
     return appEvents.flatMap(event => {
         if (event.recurrence === 'yearly') {
             const date = getNextYearlyEventDate(event.date, today);
-            return date ? [{ ...event, date }] : [];
+            if (!date || todayString < getYearlyEventDisplayStart(date)) return [];
+            return [{ ...event, date }];
         }
         if (isValidEventDate(event.date) && event.date < todayString) return [];
         return [event];
