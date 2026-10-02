@@ -602,6 +602,7 @@ function renderEvents() {
                 <p>${event.description || 'Описание отсутствует'}</p>
                 <div class="event-meta">
                     <span class="tag">${event.date ? formatDate(event.date) : 'Дата не указана'}</span>
+                    ${event.recurrence === 'yearly' ? '<span class="tag">Ежегодно</span>' : ''}
                     <span class="tag">${event.time || 'Время не указано'}</span>
                     <span class="tag">${event.location || 'Место не указано'}</span>
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
@@ -624,6 +625,7 @@ function formatDate(dateString) {
 async function saveEvent() {
     const title = document.getElementById('event-title').value.trim();
     const date = document.getElementById('event-date').value;
+    const recurrence = document.getElementById('event-yearly').checked ? 'yearly' : undefined;
     const time = document.getElementById('event-time').value;
     const location = document.getElementById('event-location').value.trim();
     const description = document.getElementById('event-description').value.trim();
@@ -639,6 +641,7 @@ async function saveEvent() {
         if (index >= 0) {
             appEvents[index] = {
                 ...appEvents[index], title, date, time,
+                recurrence,
                 location: location || appEvents[index].location || 'Место не указано',
                 description: description || appEvents[index].description || 'Описание события скоро появится.',
                 maxParticipants: limit
@@ -647,6 +650,7 @@ async function saveEvent() {
     } else {
         appEvents.unshift({
             id: Date.now(), title, date, time,
+            recurrence,
             location: location || 'Место не указано',
             description: description || 'Описание события скоро появится.',
             participants: [], maxParticipants: limit
@@ -673,6 +677,7 @@ function editEvent(eventId) {
     editingEventId = eventId;
     document.getElementById('event-title').value = event.title || '';
     document.getElementById('event-date').value = event.date || '';
+    document.getElementById('event-yearly').checked = event.recurrence === 'yearly';
     document.getElementById('event-time').value = event.time || '';
     document.getElementById('event-location').value = event.location || '';
     document.getElementById('event-description').value = event.description || '';
@@ -702,6 +707,7 @@ function resetForm() {
     editingEventId = null;
     document.getElementById('event-title').value = '';
     document.getElementById('event-date').value = '';
+    document.getElementById('event-yearly').checked = false;
     document.getElementById('event-time').value = '';
     document.getElementById('event-location').value = '';
     document.getElementById('event-description').value = '';

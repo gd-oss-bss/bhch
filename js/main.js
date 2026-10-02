@@ -12,6 +12,7 @@ const DEFAULT_EVENTS = [
         id: 2,
         title: '🎂🎉🥃День рождения БХЧ🍹🥂🍻',
         date: '2026-10-02',
+        recurrence: 'yearly',
         time: '09:00',
         location: 'Любое место, где продают алкашку',
         description: 'Веселиться, гулять, выпивать, смеяться  и дурить до самого утра в компании лучших собутыльников.',
@@ -26,6 +27,7 @@ let targetDateString = '';
 let isAuthenticated = false;
 let appBirthdays = [];
 let appHolidays = [];
+let eventRefreshTimeout;
 
 function simpleDecrypt(encrypted) {
     let decrypted = '';
@@ -149,6 +151,54 @@ function initPage() {
     loadEvents();
     loadBirthdays();
     loadHolidays();
+    scheduleEventRefresh();
+}
+
+function getLocalDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isValidEventDate(dateString) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
+    const date = new Date(`${dateString}T00:00:00`);
+    return !Number.isNaN(date.getTime()) && getLocalDateString(date) === dateString;
+}
+
+function getNextYearlyEventDate(dateString, today) {
+    if (!isValidEventDate(dateString)) return null;
+    const monthDay = dateString.slice(5);
+    for (let year = today.getFullYear(); year <= today.getFullYear() + 8; year++) {
+        const candidateString = `${year}-${monthDay}`;
+        if (!isValidEventDate(candidateString)) continue;
+        if (candidateString >= getLocalDateString(today)) return candidateString;
+    }
+    return null;
+}
+
+function getVisibleEvents(today = new Date()) {
+    const todayString = getLocalDateString(today);
+    return appEvents.flatMap(event => {
+        if (event.recurrence === 'yearly') {
+            const date = getNextYearlyEventDate(event.date, today);
+            return date ? [{ ...event, date }] : [];
+        }
+        if (isValidEventDate(event.date) && event.date < todayString) return [];
+        return [event];
+    });
+}
+
+function scheduleEventRefresh() {
+    if (eventRefreshTimeout) clearTimeout(eventRefreshTimeout);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 50);
+    eventRefreshTimeout = setTimeout(() => {
+        renderEvents();
+        scheduleEventRefresh();
+    }, tomorrow.getTime() - Date.now());
 }
 
 function updateCustomDate(val) {
@@ -361,9 +411,11 @@ function renderUpcomingHighlights() {
 
     const birthday = getNextBirthday();
     const holiday = getUpcomingHoliday();
-    const upcomingEvents = appEvents
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcomingEvents = getVisibleEvents(today)
         .map(event => ({ ...event, eventDate: new Date(`${event.date}T00:00:00`) }))
-        .filter(event => !Number.isNaN(event.eventDate.getTime()) && event.eventDate >= new Date())
+        .filter(event => !Number.isNaN(event.eventDate.getTime()) && event.eventDate >= today)
         .sort((a, b) => a.eventDate - b.eventDate);
 
     const items = [];
@@ -431,13 +483,14 @@ function renderEvents() {
     const eventsList = document.getElementById('events-list');
     if (!eventsList) return;
 
-    if (!appEvents.length) {
+    const visibleEvents = getVisibleEvents();
+    if (!visibleEvents.length) {
         eventsList.innerHTML = '<p>События пока не добавлены.</p>';
         renderUpcomingHighlights();
         return;
     }
 
-    eventsList.innerHTML = appEvents.map(event => {
+    eventsList.innerHTML = visibleEvents.map(event => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registered = hasUserRegistered(event.id);
         return `

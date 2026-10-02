@@ -118,6 +118,22 @@ body {
     margin-bottom: 15px;
 }
 
+.event-recurrence {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.event-recurrence input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
 input, textarea, select {
     width: 100%;
     background: var(--soft);
