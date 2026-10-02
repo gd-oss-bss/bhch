@@ -431,3 +431,76 @@ section h2 {
     .timer-display { grid-template-columns: repeat(2, 1fr); }
     .timer-amount { font-size: 2rem; }
 }
+
+.birthday-celebration {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.birthday-particle {
+    position: absolute;
+    top: -12vh;
+    animation-duration: var(--fall-duration);
+    animation-delay: var(--fall-delay);
+    animation-timing-function: ease-in;
+    animation-fill-mode: both;
+}
+
+.birthday-balloon {
+    width: 26px;
+    height: 34px;
+    border-radius: 50% 50% 46% 46%;
+    background: var(--particle-color);
+    box-shadow: inset -4px -3px 0 rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.2);
+    animation-name: birthday-balloon-fall;
+}
+
+.birthday-balloon::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    bottom: -4px;
+    border-width: 4px 3px 0;
+    border-style: solid;
+    border-color: var(--particle-color) transparent transparent;
+}
+
+.birthday-balloon::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 36px;
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.birthday-ribbon {
+    width: 8px;
+    height: 42px;
+    border-radius: 5px;
+    background: var(--particle-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    animation-name: birthday-ribbon-fall;
+}
+
+@keyframes birthday-balloon-fall {
+    to {
+        transform: translate3d(var(--sway), 115vh, 0) rotate(var(--spin));
+    }
+}
+
+@keyframes birthday-ribbon-fall {
+    to {
+        transform: translate3d(var(--sway), 115vh, 0) rotate(var(--spin));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .birthday-particle {
+        animation: none;
+    }
+}

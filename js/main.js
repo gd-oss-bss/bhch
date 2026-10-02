@@ -338,13 +338,48 @@ function loadBirthdays() {
             }
             renderBirthdays();
             renderUpcomingHighlights();
+            celebrateBirthdayIfToday();
         })
         .catch(() => {
             const saved = localStorage.getItem(BIRTHDAYS_KEY);
             appBirthdays = saved ? JSON.parse(saved) : [];
             renderBirthdays();
             renderUpcomingHighlights();
+            celebrateBirthdayIfToday();
         });
+}
+
+function celebrateBirthdayIfToday() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const now = new Date();
+    const today = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const hasBirthday = appBirthdays.some(birthday =>
+        typeof birthday.date === 'string' && birthday.date.slice(5) === today
+    );
+    if (!hasBirthday || document.querySelector('.birthday-celebration')) return;
+
+    const colors = ['#f43f5e', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'];
+    const celebration = document.createElement('div');
+    celebration.className = 'birthday-celebration';
+    celebration.setAttribute('aria-hidden', 'true');
+
+    for (let index = 0; index < 24; index++) {
+        const particle = document.createElement('span');
+        const isRibbon = index % 3 === 0;
+        const sway = `${Math.round(Math.random() * 120 - 60)}px`;
+        particle.className = isRibbon ? 'birthday-particle birthday-ribbon' : 'birthday-particle birthday-balloon';
+        particle.style.left = `${Math.random() * 96 + 2}%`;
+        particle.style.setProperty('--fall-duration', `${5.5 + Math.random() * 2}s`);
+        particle.style.setProperty('--fall-delay', `${Math.random() * 1.2}s`);
+        particle.style.setProperty('--sway', sway);
+        particle.style.setProperty('--spin', `${Math.round(Math.random() * 180 - 90)}deg`);
+        particle.style.setProperty('--particle-color', colors[index % colors.length]);
+        celebration.appendChild(particle);
+    }
+
+    document.body.appendChild(celebration);
+    window.setTimeout(() => celebration.remove(), 10000);
 }
 
 function loadHolidays() {
