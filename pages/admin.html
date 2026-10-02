@@ -91,6 +91,33 @@
                 <div id="birthdays-list" class="event-list"></div>
             </section>
 
+            <section class="panel">
+                <h3 id="holiday-form-title">Добавить праздник</h3>
+                <input type="text" id="holiday-name" placeholder="Название праздника" maxlength="120" />
+                <input type="text" id="holiday-date" placeholder="ММ-ДД (например, 05-09)" maxlength="5" />
+                <select id="holiday-event-type">
+                    <option value="general">Общий праздник</option>
+                    <option value="moto">Мото-событие</option>
+                </select>
+                <div class="admin-actions">
+                    <button type="button" id="save-holiday-button" onclick="saveHoliday()">Сохранить праздник</button>
+                    <button type="button" class="secondary" onclick="resetHolidayForm()">Очистить</button>
+                </div>
+                <div class="admin-actions">
+                    <button type="button" class="secondary" onclick="downloadHolidaysJson()">📥 Скачать holidays.json</button>
+                    <input id="import-holidays-input" type="file" accept="application/json,.json" class="hidden" onchange="importHolidaysJson(this)" />
+                    <button type="button" class="secondary" onclick="document.getElementById('import-holidays-input').click()">📤 Импорт JSON</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Изменения сохраняются в локальном черновике. Скачайте файл и поместите его в data/holidays.json, чтобы опубликовать.</p>
+                <button type="button" class="secondary" style="width:100%; margin-top: 12px;" onclick="discardHolidayDraft()">Загрузить опубликованный список</button>
+                <div id="holiday-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Список праздников</h3>
+                <div id="holidays-list" class="event-list"></div>
+            </section>
+
             <section class="panel" style="grid-column:1 / -1;">
                 <h3>Сменить пароль</h3>
                 <div class="password-form">

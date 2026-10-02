@@ -1,5 +1,6 @@
 const EVENTS_KEY = 'buhlo_events_data';
 const BIRTHDAYS_DRAFT_KEY = 'buhlo_birthdays_admin_draft';
+const HOLIDAYS_DRAFT_KEY = 'buhlo_holidays_admin_draft';
 
 // Encrypted admin password: Pvfxbycrbq1981
 const ENCRYPTED_ADMIN_PASSWORD = 'Wqa\u007fe~duev6>?6';
@@ -10,8 +11,10 @@ const API_URL = (window.BUHLO_API_URL || '').replace(/\/$/, '');
 
 let appEvents = [];
 let appBirthdays = [];
+let appHolidays = [];
 let editingEventId = null;
 let editingBirthdayIndex = null;
+let editingHolidayIndex = null;
 let isAdminAuthenticated = false; // in-memory auth flag (session only)
 
 function simpleDecrypt(encrypted) {
@@ -51,6 +54,7 @@ function checkAdminLogin() {
         showDashboard();
         loadEvents();
         loadAdminBirthdays();
+        loadAdminHolidays();
     } else {
         document.getElementById('admin-error').style.display = 'block';
         document.getElementById('admin-password').value = '';
@@ -187,6 +191,167 @@ function setBirthdayStatus(message, isError = false) {
     if (isError) status.classList.add('error');
 }
 
+function parseHolidays(value) {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    const holidays = Array.isArray(parsed) ? parsed : parsed?.holidays;
+    if (!Array.isArray(holidays)) {
+        throw new Error('Ожидается массив holidays');
+    }
+
+    return holidays.map((holiday, index) => {
+        if (!holiday || typeof holiday !== 'object') {
+            throw new Error(`Некорректная запись №${index + 1}`);
+        }
+        const name = typeof holiday.name === 'string' ? holiday.name.trim() : '';
+        const date = typeof holiday.date === 'string' ? holiday.date : '';
+        const eventType = holiday.event_type === undefined ? 'general' : holiday.event_type;
+        if (!name || name.length > 120 || !isValidHolidayDate(date) ||
+            !['general', 'moto'].includes(eventType)) {
+            throw new Error(`Проверьте название, дату и тип в записи №${index + 1}`);
+        }
+        return { date, name, event_type: eventType };
+    });
+}
+
+function isValidHolidayDate(date) {
+    const match = /^(\d{2})-(\d{2})$/.exec(date);
+    if (!match) return false;
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    const parsed = new Date(Date.UTC(2000, month - 1, day));
+    return parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
+async function loadAdminHolidays() {
+    try {
+        const draft = localStorage.getItem(HOLIDAYS_DRAFT_KEY);
+        if (draft !== null) {
+            appHolidays = parseHolidays(draft);
+            renderAdminHolidays();
+            setHolidayStatus('Загружен локальный черновик. Скачайте holidays.json и опубликуйте его, чтобы изменения увидели все.');
+            return;
+        }
+
+        const response = await fetch('../data/holidays.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        appHolidays = parseHolidays(await response.json());
+        renderAdminHolidays();
+    } catch (error) {
+        appHolidays = [];
+        renderAdminHolidays();
+        setHolidayStatus(`Не удалось загрузить праздники: ${error.message}`, true);
+    }
+}
+
+function renderAdminHolidays() {
+    const list = document.getElementById('holidays-list');
+    if (!list) return;
+
+    if (!appHolidays.length) {
+        list.innerHTML = '<div class="empty">Праздники пока не добавлены.</div>';
+        return;
+    }
+
+    list.innerHTML = appHolidays.map((holiday, index) => `
+        <div class="event-item">
+            <h4>${escapeHtml(holiday.name)}</h4>
+            <div class="event-meta">
+                <span class="tag">${escapeHtml(holiday.date)}</span>
+                <span class="tag">${holiday.event_type === 'moto' ? 'Мото-событие' : 'Общий праздник'}</span>
+            </div>
+            <div class="event-actions">
+                <button type="button" onclick="editHoliday(${index})">Редактировать</button>
+                <button type="button" class="danger" onclick="deleteHoliday(${index})">Удалить</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function saveHoliday() {
+    const name = document.getElementById('holiday-name').value.trim();
+    const date = document.getElementById('holiday-date').value.trim();
+    const eventType = document.getElementById('holiday-event-type').value;
+
+    if (!name || name.length > 120 || !isValidHolidayDate(date) ||
+        !['general', 'moto'].includes(eventType)) {
+        setHolidayStatus('Укажите название, дату в формате ММ-ДД и тип праздника.', true);
+        return;
+    }
+
+    const updated = [...appHolidays];
+    const holiday = { date, name, event_type: eventType };
+    if (editingHolidayIndex !== null) {
+        updated[editingHolidayIndex] = holiday;
+    } else {
+        updated.push(holiday);
+    }
+
+    try {
+        localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(updated));
+        appHolidays = updated;
+        renderAdminHolidays();
+        resetHolidayForm();
+        setHolidayStatus('Черновик сохранён в этом браузере. Скачайте holidays.json и опубликуйте изменения.');
+    } catch (error) {
+        setHolidayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+    }
+}
+
+function editHoliday(index) {
+    const holiday = appHolidays[index];
+    if (!holiday) return;
+
+    editingHolidayIndex = index;
+    document.getElementById('holiday-name').value = holiday.name;
+    document.getElementById('holiday-date').value = holiday.date;
+    document.getElementById('holiday-event-type').value = holiday.event_type;
+    document.getElementById('save-holiday-button').textContent = 'Обновить праздник';
+    document.getElementById('holiday-form-title').textContent = 'Редактировать праздник';
+}
+
+function deleteHoliday(index) {
+    const holiday = appHolidays[index];
+    if (!holiday || !confirm(`Удалить праздник «${holiday.name}»?`)) return;
+
+    const updated = appHolidays.filter((_, itemIndex) => itemIndex !== index);
+    try {
+        localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(updated));
+        appHolidays = updated;
+        renderAdminHolidays();
+        if (editingHolidayIndex === index) {
+            resetHolidayForm();
+        } else if (editingHolidayIndex !== null && editingHolidayIndex > index) {
+            editingHolidayIndex -= 1;
+        }
+        setHolidayStatus('Праздник удалён из черновика. Скачайте holidays.json и опубликуйте изменения.');
+    } catch (error) {
+        setHolidayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+    }
+}
+
+function resetHolidayForm() {
+    editingHolidayIndex = null;
+    document.getElementById('holiday-name').value = '';
+    document.getElementById('holiday-date').value = '';
+    document.getElementById('holiday-event-type').value = 'general';
+    document.getElementById('save-holiday-button').textContent = 'Сохранить праздник';
+    document.getElementById('holiday-form-title').textContent = 'Добавить праздник';
+}
+
+async function discardHolidayDraft() {
+    try {
+        if (localStorage.getItem(HOLIDAYS_DRAFT_KEY) !== null &&
+            !confirm('Удалить локальный черновик и загрузить опубликованные праздники?')) {
+            return;
+        }
+        localStorage.removeItem(HOLIDAYS_DRAFT_KEY);
+        resetHolidayForm();
+        await loadAdminHolidays();
+    } catch (error) {
+        setHolidayStatus(`Не удалось загрузить опубликованный список: ${error.message}`, true);
+    }
+}
+
 function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, character => ({
         '&': '&amp;',
@@ -311,6 +476,52 @@ function downloadBirthdaysJson() {
     link.remove();
     URL.revokeObjectURL(url);
     setBirthdayStatus('Файл birthdays.json скачан. Добавьте его в data/ и опубликуйте сайт.');
+}
+
+function downloadHolidaysJson() {
+    const blob = new Blob([JSON.stringify({ holidays: appHolidays }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'holidays.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setHolidayStatus('Файл holidays.json скачан. Добавьте его в data/ и опубликуйте сайт.');
+}
+
+function setHolidayStatus(message, isError = false) {
+    const status = document.getElementById('holiday-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+function importHolidaysJson(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
+            const imported = parseHolidays(reader.result);
+            localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(imported));
+            appHolidays = imported;
+            renderAdminHolidays();
+            setHolidayStatus('JSON импортирован в локальный черновик.');
+        } catch (error) {
+            setHolidayStatus(`Ошибка импорта: ${error.message}`, true);
+        } finally {
+            input.value = '';
+        }
+    };
+    reader.onerror = () => {
+        setHolidayStatus('Не удалось прочитать выбранный файл.', true);
+        input.value = '';
+    };
+    reader.readAsText(file);
 }
 
 function importBirthdaysJson(input) {
