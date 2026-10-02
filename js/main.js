@@ -317,6 +317,16 @@ function daysBetween(from, to) {
     return Math.round((to - from) / (1000 * 60 * 60 * 24));
 }
 
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[character]);
+}
+
 function getNextBirthday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -356,7 +366,7 @@ function renderUpcomingHighlights() {
   //  }
         if (birthday) {
         const birthdayDateString = birthday.nextDate.toLocaleDateString('sv');
-        items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthdayDateString)} — ${birthday.name}</strong></div>`);
+            items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthdayDateString)} — ${escapeHtml(birthday.name)}</strong></div>`);
     }
   //  if (holiday) {
    //     const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
@@ -389,7 +399,7 @@ function renderBirthdays() {
 
     const renderItem = bd => {
         const dayMonth = new Date(bd.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-        return `<li class="birthday-item">🎉 ${dayMonth} — ${bd.name}</li>`;
+        return `<li class="birthday-item">🎉 ${dayMonth} — ${escapeHtml(bd.name)}</li>`;
     };
 
     const firstFour = sorted.slice(0, 4).map(renderItem).join('');

@@ -158,6 +158,11 @@ textarea {
     color: var(--success);
 }
 
+.status-message.error {
+    background: rgba(239,68,68,0.08);
+    color: #fca5a5;
+}
+
 .hidden {
     display: none !important;
 }

@@ -62,6 +62,35 @@
                 <div id="events-list" class="event-list"></div>
             </section>
 
+            <section class="panel">
+                <h3 id="birthday-form-title">Добавить день рождения</h3>
+                <input type="text" id="birthday-name" placeholder="Имя" maxlength="120" />
+                <input type="date" id="birthday-date" />
+                <div class="admin-actions">
+                    <button type="button" id="save-birthday-button" onclick="saveBirthday()">Сохранить день рождения</button>
+                    <button type="button" class="secondary" onclick="resetBirthdayForm()">Очистить</button>
+                </div>
+
+                <div class="admin-actions">
+                    <button type="button" class="secondary" onclick="downloadBirthdaysJson()">📥 Скачать birthdays.json</button>
+                    <input id="import-birthdays-input" type="file" accept="application/json,.json" class="hidden" onchange="importBirthdaysJson(this)" />
+                    <button type="button" class="secondary" onclick="document.getElementById('import-birthdays-input').click()">📤 Импорт JSON</button>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачанный файл поместите в data/birthdays.json и опубликуйте сайт. Синхронизация работает только при настроенном backend proxy.</p>
+                <div class="admin-actions">
+                    <button type="button" class="success" onclick="syncBirthdaysWithServer('save')">💾 Сохранить на сервер</button>
+                    <button type="button" class="info" onclick="syncBirthdaysWithServer('load')">🔄 Загрузить с сервера</button>
+                </div>
+                <button type="button" class="secondary" style="width:100%; margin-top: 12px;" onclick="discardBirthdayDraft()">Загрузить опубликованный список</button>
+                <div id="birthday-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Список дней рождения</h3>
+                <div id="birthdays-list" class="event-list"></div>
+            </section>
+
             <section class="panel" style="grid-column:1 / -1;">
                 <h3>Сменить пароль</h3>
                 <div class="password-form">

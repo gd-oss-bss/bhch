@@ -1,4 +1,5 @@
 const EVENTS_KEY = 'buhlo_events_data';
+const BIRTHDAYS_DRAFT_KEY = 'buhlo_birthdays_admin_draft';
 
 // Encrypted admin password: Pvfxbycrbq1981
 const ENCRYPTED_ADMIN_PASSWORD = 'Wqa\u007fe~duev6>?6';
@@ -8,7 +9,9 @@ const ENCRYPTED_ADMIN_PASSWORD = 'Wqa\u007fe~duev6>?6';
 const API_URL = (window.BUHLO_API_URL || '').replace(/\/$/, '');
 
 let appEvents = [];
+let appBirthdays = [];
 let editingEventId = null;
+let editingBirthdayIndex = null;
 let isAdminAuthenticated = false; // in-memory auth flag (session only)
 
 function simpleDecrypt(encrypted) {
@@ -47,6 +50,7 @@ function checkAdminLogin() {
         document.getElementById('admin-error').style.display = 'none';
         showDashboard();
         loadEvents();
+        loadAdminBirthdays();
     } else {
         document.getElementById('admin-error').style.display = 'block';
         document.getElementById('admin-password').value = '';
@@ -124,6 +128,250 @@ async function loadEvents() {
     }
 
     renderEvents();
+}
+
+function parseBirthdays(value) {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    const birthdays = Array.isArray(parsed) ? parsed : parsed?.birthdays;
+    if (!Array.isArray(birthdays)) {
+        throw new Error('Ожидается массив birthdays');
+    }
+
+    return birthdays.map((birthday, index) => {
+        if (!birthday || typeof birthday !== 'object') {
+            throw new Error(`Некорректная запись №${index + 1}`);
+        }
+        const name = typeof birthday.name === 'string' ? birthday.name.trim() : '';
+        const date = typeof birthday.date === 'string' ? birthday.date : '';
+        if (!name || name.length > 120 || !isValidBirthdayDate(date)) {
+            throw new Error(`Проверьте имя и дату в записи №${index + 1}`);
+        }
+        return { date, name };
+    });
+}
+
+function isValidBirthdayDate(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const parsed = new Date(`${date}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+}
+
+async function loadAdminBirthdays() {
+    const status = document.getElementById('birthday-status');
+    status.classList.add('hidden');
+
+    try {
+        const draft = localStorage.getItem(BIRTHDAYS_DRAFT_KEY);
+        if (draft !== null) {
+            appBirthdays = parseBirthdays(draft);
+            renderAdminBirthdays();
+            setBirthdayStatus('Загружен локальный черновик. Скачайте JSON и опубликуйте его, чтобы изменения увидели все.');
+            return;
+        }
+
+        const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        appBirthdays = parseBirthdays(await response.json());
+        renderAdminBirthdays();
+    } catch (error) {
+        appBirthdays = [];
+        renderAdminBirthdays();
+        setBirthdayStatus(`Не удалось загрузить дни рождения: ${error.message}`, true);
+    }
+}
+
+function setBirthdayStatus(message, isError = false) {
+    const status = document.getElementById('birthday-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[character]);
+}
+
+function renderAdminBirthdays() {
+    const list = document.getElementById('birthdays-list');
+    if (!list) return;
+
+    if (!appBirthdays.length) {
+        list.innerHTML = '<div class="empty">Дни рождения пока не добавлены.</div>';
+        return;
+    }
+
+    list.innerHTML = appBirthdays.map((birthday, index) => `
+        <div class="event-item">
+            <h4>${escapeHtml(birthday.name)}</h4>
+            <div class="event-meta"><span class="tag">${formatDate(birthday.date)}</span></div>
+            <div class="event-actions">
+                <button type="button" onclick="editBirthday(${index})">Редактировать</button>
+                <button type="button" class="danger" onclick="deleteBirthday(${index})">Удалить</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function saveBirthday() {
+    const nameInput = document.getElementById('birthday-name');
+    const dateInput = document.getElementById('birthday-date');
+    const name = nameInput.value.trim();
+    const date = dateInput.value;
+
+    if (!name || !isValidBirthdayDate(date)) {
+        setBirthdayStatus('Укажите имя и корректную дату рождения.', true);
+        return;
+    }
+
+    const updated = [...appBirthdays];
+    if (editingBirthdayIndex !== null) {
+        updated[editingBirthdayIndex] = { date, name };
+    } else {
+        updated.push({ date, name });
+    }
+
+    try {
+        localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(updated));
+        appBirthdays = updated;
+        renderAdminBirthdays();
+        resetBirthdayForm();
+        setBirthdayStatus('Черновик сохранён в этом браузере. Скачайте birthdays.json и опубликуйте изменения.');
+    } catch (error) {
+        setBirthdayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+    }
+}
+
+function editBirthday(index) {
+    const birthday = appBirthdays[index];
+    if (!birthday) return;
+
+    editingBirthdayIndex = index;
+    document.getElementById('birthday-name').value = birthday.name;
+    document.getElementById('birthday-date').value = birthday.date;
+    document.getElementById('save-birthday-button').textContent = 'Обновить день рождения';
+    document.getElementById('birthday-form-title').textContent = 'Редактировать день рождения';
+}
+
+function deleteBirthday(index) {
+    const birthday = appBirthdays[index];
+    if (!birthday || !confirm(`Удалить день рождения «${birthday.name}»?`)) return;
+
+    const updated = appBirthdays.filter((_, itemIndex) => itemIndex !== index);
+    try {
+        localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(updated));
+        appBirthdays = updated;
+        renderAdminBirthdays();
+        if (editingBirthdayIndex === index) {
+            resetBirthdayForm();
+        } else if (editingBirthdayIndex !== null && editingBirthdayIndex > index) {
+            editingBirthdayIndex -= 1;
+        }
+        setBirthdayStatus('Запись удалена из черновика. Скачайте birthdays.json и опубликуйте изменения.');
+    } catch (error) {
+        setBirthdayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+    }
+}
+
+function resetBirthdayForm() {
+    editingBirthdayIndex = null;
+    document.getElementById('birthday-name').value = '';
+    document.getElementById('birthday-date').value = '';
+    document.getElementById('save-birthday-button').textContent = 'Сохранить день рождения';
+    document.getElementById('birthday-form-title').textContent = 'Добавить день рождения';
+}
+
+async function discardBirthdayDraft() {
+    try {
+        if (localStorage.getItem(BIRTHDAYS_DRAFT_KEY) !== null &&
+            !confirm('Удалить локальный черновик и загрузить опубликованные дни рождения?')) {
+            return;
+        }
+        localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
+        resetBirthdayForm();
+        await loadAdminBirthdays();
+    } catch (error) {
+        setBirthdayStatus(`Не удалось загрузить опубликованный список: ${error.message}`, true);
+    }
+}
+
+function downloadBirthdaysJson() {
+    const blob = new Blob([JSON.stringify({ birthdays: appBirthdays }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'birthdays.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setBirthdayStatus('Файл birthdays.json скачан. Добавьте его в data/ и опубликуйте сайт.');
+}
+
+function importBirthdaysJson(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
+            const imported = parseBirthdays(reader.result);
+            localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(imported));
+            appBirthdays = imported;
+            renderAdminBirthdays();
+            setBirthdayStatus('JSON импортирован в локальный черновик.');
+        } catch (error) {
+            setBirthdayStatus(`Ошибка импорта: ${error.message}`, true);
+        } finally {
+            input.value = '';
+        }
+    };
+    reader.onerror = () => {
+        setBirthdayStatus('Не удалось прочитать выбранный файл.', true);
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+async function loadBirthdaysFromServer() {
+    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
+    const response = await fetch(`${API_URL}/birthdays`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const birthdays = parseBirthdays(await response.json());
+    localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
+    appBirthdays = birthdays;
+    renderAdminBirthdays();
+}
+
+async function saveBirthdaysToServer() {
+    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
+    const response = await fetch(`${API_URL}/birthdays`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ birthdays: appBirthdays })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
+}
+
+async function syncBirthdaysWithServer(action) {
+    try {
+        if (action === 'save') {
+            await saveBirthdaysToServer();
+            setBirthdayStatus('Дни рождения сохранены на сервере.');
+        } else {
+            await loadBirthdaysFromServer();
+            setBirthdayStatus('Дни рождения загружены с сервера.');
+        }
+    } catch (error) {
+        setBirthdayStatus(`Синхронизация не удалась: ${error.message}`, true);
+    }
 }
 
 function renderEvents() {
