@@ -1,0 +1,84 @@
+{
+  "holidays": [
+    {
+      "date": "01-01",
+      "name": "Новый год",
+      "event_type": "general"
+    },
+    {
+      "date": "02-23",
+      "name": "День защитника Отечества",
+      "event_type": "general"
+    },
+    {
+      "date": "03-08",
+      "name": "Международный женский день",
+      "event_type": "general"
+    },
+    {
+      "date": "05-01",
+      "name": "Праздник Весны и Труда",
+      "event_type": "general"
+    },
+    {
+      "date": "05-09",
+      "name": "День Победы",
+      "event_type": "general"
+    },
+    {
+      "date": "12-25",
+      "name": "Рождество Христово (католическое)",
+      "event_type": "general"
+    },
+    {
+      "date": "04-18",
+      "name": "Республиканское открытие мотосезона (Минск)",
+      "event_type": "moto"
+    },
+    {
+      "date": "05-16",
+      "name": "Международный день барбекю (День барбекю на байке)",
+      "event_type": "moto"
+    },
+    {
+      "date": "05-29",
+      "name": "Мотофестиваль MotoPovodBrest (база Орлёнок)",
+      "event_type": "moto"
+    },
+    {
+      "date": "06-12",
+      "name": "Мотофестиваль Village Party (Беловежская пуща)",
+      "event_type": "moto"
+    },
+    {
+      "date": "06-26",
+      "name": "Байк-рок фестиваль MotoFestWest (Барановичи)",
+      "event_type": "moto"
+    },
+    {
+      "date": "07-24",
+      "name": "Фестиваль Brest Motor Music Weekend",
+      "event_type": "moto"
+    },
+    {
+      "date": "08-15",
+      "name": "Фестиваль Тачки Пікнік и Мотошоу FERZ (Лида)",
+      "event_type": "moto"
+    },
+    {
+      "date": "08-28",
+      "name": "Лидский байк-фестиваль (Lida Bike Fest)",
+      "event_type": "moto"
+    },
+    {
+      "date": "09-19",
+      "name": "Официальное закрытие мотосезона в Беларуси",
+      "event_type": "moto"
+    },
+    {
+      "date": "10-17",
+      "name": "Мото-встреча OCTOBER DAY (Route P98)",
+      "event_type": "moto"
+    }
+  ]
+}
