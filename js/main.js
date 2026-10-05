@@ -198,12 +198,27 @@ function initPage() {
     loadBirthdays();
     loadHolidays();
     loadGallery();
+    trackSiteVisit();
     scheduleEventRefresh();
     if (!visibilityListenerAdded) {
         visibilityListenerAdded = true;
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && isAuthenticated) loadEvents();
         });
+    }
+}
+
+function trackSiteVisit() {
+    if (!window.BuhloSupabase?.configured) return;
+    try {
+        let visitorId = localStorage.getItem('buhlo_visitor_id');
+        if (!visitorId) {
+            visitorId = crypto.randomUUID();
+            localStorage.setItem('buhlo_visitor_id', visitorId);
+        }
+        window.BuhloSupabase.logSiteVisit(visitorId, 'hub').catch(() => {});
+    } catch (error) {
+        // статистика не должна ломать сайт
     }
 }
 

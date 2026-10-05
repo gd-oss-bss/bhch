@@ -742,4 +742,107 @@ CREATE POLICY "Admins delete BHCH_DATA"
     ON storage.objects FOR DELETE TO authenticated
     USING (bucket_id = 'BHCH_DATA' AND public.is_buhlo_admin());
 
+-- Site visit statistics (no direct table access; only via RPC).
+CREATE TABLE IF NOT EXISTS public.site_visits (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    visited_at timestamptz NOT NULL DEFAULT now(),
+    visitor_id uuid NOT NULL,
+    page text NOT NULL DEFAULT 'hub' CHECK (char_length(page) <= 60)
+);
+CREATE INDEX IF NOT EXISTS site_visits_visited_at_idx ON public.site_visits (visited_at);
+ALTER TABLE public.site_visits ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.log_site_visit(p_visitor_id uuid, p_page text DEFAULT 'hub')
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+    v_page text := left(coalesce(nullif(trim(p_page), ''), 'hub'), 60);
+BEGIN
+    IF p_visitor_id IS NULL THEN RETURN; END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.site_visits
+        WHERE visitor_id = p_visitor_id AND page = v_page
+          AND visited_at > now() - interval '30 minutes'
+    ) THEN RETURN; END IF;
+    INSERT INTO public.site_visits (visitor_id, page) VALUES (p_visitor_id, v_page);
+    DELETE FROM public.site_visits WHERE visited_at < now() - interval '400 days';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_visit_stats(p_days integer DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+    v_days integer := least(greatest(coalesce(p_days, 30), 1), 365);
+    v_today date := (now() AT TIME ZONE 'Europe/Moscow')::date;
+    v_result jsonb;
+BEGIN
+    IF NOT public.is_buhlo_admin() THEN
+        RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+    END IF;
+
+    WITH v AS (
+        SELECT (visited_at AT TIME ZONE 'Europe/Moscow')::date AS d, visitor_id
+        FROM public.site_visits
+        WHERE visited_at >= (v_today - (v_days - 1))::timestamp AT TIME ZONE 'Europe/Moscow'
+    ),
+    daily AS (
+        SELECT g::date AS d,
+               count(v.visitor_id) AS visits,
+               count(DISTINCT v.visitor_id) AS uniques
+        FROM generate_series(v_today - (v_days - 1), v_today, interval '1 day') g
+        LEFT JOIN v ON v.d = g::date
+        GROUP BY g ORDER BY g
+    )
+    SELECT jsonb_build_object(
+        'today_visits', (SELECT count(*) FROM v WHERE d = v_today),
+        'today_unique', (SELECT count(DISTINCT visitor_id) FROM v WHERE d = v_today),
+        'week_visits', (SELECT count(*) FROM v WHERE d > v_today - 7),
+        'week_unique', (SELECT count(DISTINCT visitor_id) FROM v WHERE d > v_today - 7),
+        'month_visits', (SELECT count(*) FROM v WHERE d > v_today - 30),
+        'month_unique', (SELECT count(DISTINCT visitor_id) FROM v WHERE d > v_today - 30),
+        'daily', (SELECT coalesce(jsonb_agg(jsonb_build_object('date', d, 'visits', visits, 'uniques', uniques) ORDER BY d), '[]'::jsonb) FROM daily)
+    ) INTO v_result;
+    RETURN v_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_storage_stats()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, storage
+AS $$
+DECLARE
+    v_result jsonb;
+BEGIN
+    IF NOT public.is_buhlo_admin() THEN
+        RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT jsonb_build_object(
+        'total_bytes', coalesce(sum(bytes), 0),
+        'total_files', coalesce(sum(files), 0),
+        'folders', coalesce(jsonb_agg(jsonb_build_object('folder', folder, 'files', files, 'bytes', bytes) ORDER BY bytes DESC), '[]'::jsonb)
+    ) INTO v_result
+    FROM (
+        SELECT folder, count(*) AS files, sum(size) AS bytes
+        FROM (
+            SELECT coalesce((storage.foldername(name))[1], '(корень)') AS folder,
+                   coalesce((metadata->>'size')::bigint, 0) AS size
+            FROM storage.objects
+            WHERE bucket_id = 'BHCH_DATA'
+        ) o GROUP BY folder
+    ) f;
+    RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.log_site_visit(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_visit_stats(integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_storage_stats() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.log_site_visit(uuid, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_visit_stats(integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_storage_stats() TO authenticated;
+
 NOTIFY pgrst, 'reload schema';

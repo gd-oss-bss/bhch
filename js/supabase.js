@@ -373,7 +373,28 @@
         }
     }
 
+    async function logSiteVisit(visitorId, page) {
+        return request('rpc/log_site_visit', {
+            method: 'POST',
+            body: JSON.stringify({ p_visitor_id: visitorId, p_page: page })
+        });
+    }
+
+    async function getVisitStats(days) {
+        return request('rpc/get_visit_stats', {
+            method: 'POST',
+            body: JSON.stringify({ p_days: days })
+        }, true);
+    }
+
+    async function getStorageStats() {
+        return request('rpc/get_storage_stats', { method: 'POST', body: '{}' }, true);
+    }
+
     window.BuhloSupabase = {
+        logSiteVisit,
+        getVisitStats,
+        getStorageStats,
         get configured() { return configured; },
         get isAdmin() { return isAdmin; },
         signIn: async function(email, password) {
