@@ -108,7 +108,7 @@
         const byEvent = new Map();
         (participants || []).forEach(person => {
             if (!byEvent.has(person.event_id)) byEvent.set(person.event_id, []);
-            byEvent.get(person.event_id).push({ name: person.name });
+            byEvent.get(person.event_id).push({ name: person.name, notes: person.notes || '' });
         });
         return (rows || []).map(row => eventFromRow(row, byEvent.get(row.event_id) || []));
     }
@@ -153,6 +153,12 @@
 
     async function deleteEvent(id) {
         await request(`events?event_id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        }, true);
+    }
+
+    async function deleteRegistration(id) {
+        await request(`event_registrations?id=eq.${encodeURIComponent(id)}`, {
             method: 'DELETE'
         }, true);
     }
@@ -230,6 +236,7 @@
         replaceEvents,
         saveEvent,
         deleteEvent,
+        deleteRegistration,
         replaceBirthdays,
         replaceHolidays,
         getAdminRegistrations,
