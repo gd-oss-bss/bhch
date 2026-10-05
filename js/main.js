@@ -165,34 +165,40 @@ window.onbeforeunload = function() {
     isAuthenticated = false;
 };
 
-function initPage() {
-    let savedDate = localStorage.getItem('buhlo_target_date');
-    
-    if (!savedDate) {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        // Проверяем, прошла ли дата 17 июля этого года
-        const julyDate = new Date(`${currentYear}-07-17`);
-        
-        if (now > julyDate) {
-            // Если дата в прошлом, ставим на следующий год
-            savedDate = `${currentYear + 1}-07-17`;
-        } else {
-            // Иначе на эту дату
-            savedDate = `${currentYear}-07-17`;
-        }
-        localStorage.setItem('buhlo_target_date', savedDate);
-    }
+const TIMER_EVENT_ID = 1790676565667;
+let manualTargetDate = null;
 
+function getFallbackTimerDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    return now > new Date(`${year}-07-17`) ? `${year + 1}-07-17` : `${year}-07-17`;
+}
+
+function getTimerEventTarget() {
+    const event = appEvents.find(item => Number(item.id) === TIMER_EVENT_ID);
+    if (!event || !isValidEventDate(event.date)) return null;
+    const today = new Date();
+    const date = event.recurrence === 'yearly'
+        ? getNextYearlyEventDate(event.date, today)
+        : event.date;
+    if (!date || date < getLocalDateString(today)) return null;
+    const time = /^\d{2}:\d{2}/.test(event.time || '') ? event.time.slice(0, 5) : '00:00';
+    return { date, time };
+}
+
+function updateTimerFromEvents() {
+    if (manualTargetDate) return;
+    const target = getTimerEventTarget() || { date: getFallbackTimerDate(), time: '00:00' };
     const dateInput = document.getElementById('destination-date');
     const dateDisplay = document.getElementById('destination-date-display');
-    
-    if (dateInput) dateInput.value = savedDate;
-    if (dateDisplay) dateDisplay.value = formatDateDisplay(savedDate);
-
-    targetDateString = savedDate + 'T00:00:00';
-    console.log('Timer initialized with:', targetDateString, 'Current:', new Date());
+    if (dateInput) dateInput.value = target.date;
+    if (dateDisplay) dateDisplay.value = formatDateDisplay(target.date);
+    targetDateString = `${target.date}T${target.time}:00`;
     startTimer();
+}
+
+function initPage() {
+    updateTimerFromEvents();
     calculateAlcohol();
     loadEvents();
     loadBirthdays();
@@ -294,7 +300,7 @@ function scheduleEventRefresh() {
 
 function updateCustomDate(val) {
     if (!val) return;
-    localStorage.setItem('buhlo_target_date', val);
+    manualTargetDate = val;
     targetDateString = val + 'T00:00:00';
     
     const dateDisplay = document.getElementById('destination-date-display');
@@ -418,6 +424,7 @@ async function loadEvents() {
             const remoteEvents = await window.BuhloSupabase.getEvents();
             appEvents = remoteEvents;
             localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+            updateTimerFromEvents();
             await syncLocalRegistrations();
             renderEvents();
             return;
@@ -427,6 +434,7 @@ async function loadEvents() {
     }
 
     appEvents = getSavedEvents();
+    updateTimerFromEvents();
     renderEvents();
 }
 
