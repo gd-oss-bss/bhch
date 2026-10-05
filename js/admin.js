@@ -41,7 +41,9 @@ async function checkAdminLogin() {
         showDashboard();
         await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions()]);
     } catch (loginError) {
-        error.textContent = loginError.message;
+        error.textContent = /invalid_credentials/.test(loginError.message)
+            ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
+            : loginError.message;
         error.style.display = 'block';
         document.getElementById('admin-password').value = '';
         window.BuhloSupabase.signOut();
@@ -285,7 +287,7 @@ async function saveHoliday() {
 
     try {
         await window.BuhloSupabase.replaceHolidays(updated);
-        appHolidays = updated;
+        appHolidays = await window.BuhloSupabase.getHolidays();
         renderAdminHolidays();
         resetHolidayForm();
         setHolidayStatus('Праздники сохранены в Supabase.');
@@ -310,10 +312,15 @@ async function deleteHoliday(index) {
     const holiday = appHolidays[index];
     if (!holiday || !confirm(`Удалить праздник «${holiday.name}»?`)) return;
 
-    const updated = appHolidays.filter((_, itemIndex) => itemIndex !== index);
     try {
-        await window.BuhloSupabase.replaceHolidays(updated);
-        appHolidays = updated;
+        if (holiday.id === undefined) {
+            appHolidays = await window.BuhloSupabase.getHolidays();
+            const fresh = appHolidays.find(item => item.date === holiday.date && item.name === holiday.name);
+            if (!fresh) throw new Error('праздник уже удалён в базе');
+            holiday.id = fresh.id;
+        }
+        await window.BuhloSupabase.deleteHoliday(holiday.id);
+        appHolidays = await window.BuhloSupabase.getHolidays();
         renderAdminHolidays();
         if (editingHolidayIndex === index) {
             resetHolidayForm();
@@ -322,7 +329,9 @@ async function deleteHoliday(index) {
         }
         setHolidayStatus('Праздник удалён из Supabase.');
     } catch (error) {
+        renderAdminHolidays();
         setHolidayStatus(`Не удалось удалить праздник: ${error.message}`, true);
+        alert(`Не удалось удалить праздник: ${error.message}`);
     }
 }
 
@@ -341,7 +350,7 @@ async function migrateHolidayDraft() {
         if (draft === null || !confirm('Заменить список праздников в Supabase старым локальным черновиком?')) return;
         const holidays = parseHolidays(draft);
         await window.BuhloSupabase.replaceHolidays(holidays);
-        appHolidays = holidays;
+        appHolidays = await window.BuhloSupabase.getHolidays();
         localStorage.removeItem(HOLIDAYS_DRAFT_KEY);
         document.getElementById('legacy-holiday-draft').classList.add('hidden');
         renderAdminHolidays();
@@ -777,7 +786,7 @@ async function restoreHolidaysFromStorage() {
         const holidays = parseBackupList(await window.BuhloSupabase.downloadBackup('holidays'), 'holidays');
         if (!confirm(`Заменить праздники в базе данными из бэкапа (${holidays.length})?`)) return;
         await window.BuhloSupabase.replaceHolidays(holidays);
-        appHolidays = holidays;
+        appHolidays = await window.BuhloSupabase.getHolidays();
         renderAdminHolidays();
         setHolidayStatus(`Праздники восстановлены из бэкапа (${holidays.length}).`);
     } catch (error) {

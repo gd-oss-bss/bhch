@@ -122,6 +122,7 @@
     async function getHolidays() {
         const rows = await request('holidays?select=id,date,name,event_type&order=date.asc');
         return (rows || []).map(row => ({
+            id: row.id,
             date: row.date,
             name: row.name,
             event_type: row.event_type
@@ -180,6 +181,16 @@
             method: 'POST',
             body: JSON.stringify({ p_holidays: holidays })
         }, true);
+    }
+
+    async function deleteHoliday(id) {
+        const deleted = await request(`holidays?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
+        }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила праздник (нет прав или его уже нет)');
+        }
     }
 
     async function getAdminRegistrations() {
@@ -290,12 +301,12 @@
     }
 
     async function deleteHubQuestion(id) {
-        const deleted = await request(`hub_questions?id=eq.${encodeURIComponent(id)}`, {
-            method: 'DELETE',
-            headers: { Prefer: 'return=representation' }
+        const deleted = await request('rpc/delete_hub_question', {
+            method: 'POST',
+            body: JSON.stringify({ p_id: id })
         }, true);
-        if (!Array.isArray(deleted) || !deleted.length) {
-            throw new Error('база не удалила вопрос (нет прав или его уже нет)');
+        if (deleted !== true) {
+            throw new Error('база не удалила вопрос (его уже нет)');
         }
     }
 
@@ -343,6 +354,7 @@
         deleteEvent,
         deleteRegistration,
         hasRegistration,
+        deleteHoliday,
         getGalleryPhotos,
         getHubQuestion,
         checkHubAnswer,
