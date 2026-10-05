@@ -269,6 +269,23 @@ header {
     box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
 }
 
+.nav-links .logout-link {
+    width: auto;
+    padding: 8px 14px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-weight: 700;
+    font-size: 0.85rem;
+    box-shadow: none;
+}
+
+.nav-links .logout-link:hover {
+    background: rgba(239, 68, 68, 0.25);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
 .container {
     max-width: 800px;
     margin: 40px auto;

@@ -123,6 +123,31 @@
                 <div id="holidays-list" class="event-list"></div>
             </section>
 
+            <section class="panel">
+                <h3 id="hub-question-form-title">Добавить вопрос входа</h3>
+                <input type="text" id="hub-question-text" placeholder="Вопрос" maxlength="300" />
+                <input type="text" id="hub-question-answer" placeholder="Правильный ответ" maxlength="200" autocomplete="off" />
+                <textarea id="hub-question-description" placeholder="Описание (видно только админу)" maxlength="2000"></textarea>
+                <label for="hub-question-from">Доступен с</label>
+                <input type="date" id="hub-question-from" />
+                <label for="hub-question-to">Доступен по</label>
+                <input type="date" id="hub-question-to" />
+                <div class="admin-actions">
+                    <button type="button" id="save-hub-question-button" onclick="saveHubQuestion()">Сохранить вопрос</button>
+                    <button type="button" class="secondary" onclick="resetHubQuestionForm()">Очистить</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Ответ хранится в базе только в виде хэша и не отображается. При редактировании оставьте поле ответа пустым, чтобы не менять его. Пустые даты — без ограничений. Если подходящих вопросов несколько, на входе показывается случайный.</p>
+                <div class="admin-actions">
+                    <button type="button" class="info" onclick="loadAdminHubQuestions()">🔄 Загрузить из Supabase</button>
+                </div>
+                <div id="hub-question-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Вопросы входа на хаб</h3>
+                <div id="hub-questions-list" class="event-list"></div>
+            </section>
+
             <section class="panel" style="grid-column:1 / -1;">
                 <h3>Сменить пароль</h3>
                 <div class="password-form">

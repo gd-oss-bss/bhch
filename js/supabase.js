@@ -259,6 +259,46 @@
         }));
     }
 
+    async function getHubQuestion() {
+        const rows = await request('rpc/get_hub_question', { method: 'POST', body: '{}' });
+        return rows && rows[0] ? rows[0] : null;
+    }
+
+    async function checkHubAnswer(id, answer) {
+        return request('rpc/check_hub_answer', {
+            method: 'POST',
+            body: JSON.stringify({ p_id: id, p_answer: answer })
+        });
+    }
+
+    async function getHubQuestions() {
+        return request('hub_questions?select=id,question,description,available_from,available_to&order=id.asc', {}, true);
+    }
+
+    async function saveHubQuestion(item) {
+        return request('rpc/save_hub_question', {
+            method: 'POST',
+            body: JSON.stringify({
+                p_id: item.id ?? null,
+                p_question: item.question,
+                p_answer: item.answer || '',
+                p_description: item.description || '',
+                p_from: item.availableFrom || null,
+                p_to: item.availableTo || null
+            })
+        }, true);
+    }
+
+    async function deleteHubQuestion(id) {
+        const deleted = await request(`hub_questions?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
+        }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила вопрос (нет прав или его уже нет)');
+        }
+    }
+
     window.BuhloSupabase = {
         get configured() { return configured; },
         get isAdmin() { return isAdmin; },
@@ -304,6 +344,11 @@
         deleteRegistration,
         hasRegistration,
         getGalleryPhotos,
+        getHubQuestion,
+        checkHubAnswer,
+        getHubQuestions,
+        saveHubQuestion,
+        deleteHubQuestion,
         uploadBackup,
         downloadBackup,
         replaceBirthdays,

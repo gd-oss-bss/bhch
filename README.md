@@ -58,3 +58,7 @@ Admin backups live in the private Supabase Storage bucket `BHCH_DATA` (folder `d
 ## Deployment and gallery
 
 Supabase is the source of truth. The Pages workflow does not publish `data/` or `gallery/`. Gallery photos are read from the Storage bucket `BHCH_DATA` (folder `gallery/`); run `supabase/schema.sql` to allow public read of that folder only.
+
+## Hub entry questions
+
+The hub question lives in `public.hub_questions` (question, hashed answer, description, available from/to). Manage them in the admin page; answers are stored only as bcrypt hashes and verified server-side. With no active question the hub entry is closed. Run `supabase/schema.sql` and add at least one question after the first deploy.

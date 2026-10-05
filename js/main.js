@@ -1,4 +1,3 @@
-const HUB_ANSWER = 'лена';
 const HUB_AUTH_KEY = 'buhlo_hub_authenticated';
 const EVENTS_KEY = 'buhlo_events_data';
 const HOLIDAYS_KEY = 'buhlo_holidays_data';
@@ -21,15 +20,57 @@ const DEFAULT_EVENTS = [
 
 let appEvents = [];
 let countdownInterval;
+let visibilityListenerAdded = false;
 let targetDateString = '';
 let isAuthenticated = false;
 let appBirthdays = [];
 let appHolidays = [];
 let eventRefreshTimeout;
 
-function checkAuth() {
-    const val = document.getElementById('auth-input').value.trim().toLowerCase();
-    if (val === HUB_ANSWER.toLowerCase()) {
+let hubQuestionId = null;
+
+async function loadHubQuestion() {
+    const question = document.getElementById('hub-question');
+    const form = document.getElementById('hub-form');
+    if (!question || !form) return;
+
+    hubQuestionId = null;
+    form.classList.add('hidden');
+    question.textContent = 'Загрузка вопроса…';
+    try {
+        if (!window.BuhloSupabase?.configured) throw new Error('Supabase не настроен');
+        const item = await window.BuhloSupabase.getHubQuestion();
+        if (!item) {
+            question.textContent = 'Вход временно закрыт.';
+            return;
+        }
+        hubQuestionId = item.id;
+        question.textContent = item.question;
+        form.classList.remove('hidden');
+    } catch (error) {
+        console.warn('Контрольный вопрос недоступен:', error.message);
+        question.textContent = 'Не удалось загрузить вопрос. Попробуйте позже.';
+    }
+}
+
+async function checkAuth() {
+    const input = document.getElementById('auth-input');
+    const error = document.getElementById('auth-error');
+    const val = input.value.trim();
+    if (hubQuestionId === null || !val) return;
+
+    let correct = false;
+    try {
+        correct = await window.BuhloSupabase.checkHubAnswer(hubQuestionId, val) === true;
+    } catch (requestError) {
+        console.warn('Не удалось проверить ответ:', requestError.message);
+        error.textContent = 'Не удалось проверить ответ. Попробуйте позже.';
+        error.style.display = 'block';
+        return;
+    }
+
+    input.value = '';
+    if (correct) {
         isAuthenticated = true;
         if (document.getElementById('remember-auth').checked) {
             localStorage.setItem(HUB_AUTH_KEY, 'true');
@@ -38,12 +79,25 @@ function checkAuth() {
         }
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
-        document.getElementById('auth-input').value = '';
         initPage();
     } else {
-        document.getElementById('auth-error').style.display = 'block';
-        document.getElementById('auth-input').value = '';
+        error.textContent = 'Неверно! Директор расстроится.';
+        error.style.display = 'block';
+        loadHubQuestion();
     }
+}
+function logoutHub() {
+    isAuthenticated = false;
+    localStorage.removeItem(HUB_AUTH_KEY);
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (eventRefreshTimeout) clearTimeout(eventRefreshTimeout);
+    document.getElementById('main-content').style.display = 'none';
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('auth-input').value = '';
+    document.getElementById('remember-auth').checked = false;
+    document.getElementById('auth-error').style.display = 'none';
+    window.scrollTo(0, 0);
+    loadHubQuestion();
 }
 
 function goToAdmin() {
@@ -95,6 +149,7 @@ window.onload = function() {
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
+        loadHubQuestion();
     } else {
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
@@ -143,9 +198,12 @@ function initPage() {
     loadHolidays();
     loadGallery();
     scheduleEventRefresh();
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && isAuthenticated) loadEvents();
-    });
+    if (!visibilityListenerAdded) {
+        visibilityListenerAdded = true;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && isAuthenticated) loadEvents();
+        });
+    }
 }
 
 function getLocalDateString(date) {

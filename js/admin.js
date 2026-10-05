@@ -39,7 +39,7 @@ async function checkAdminLogin() {
         document.getElementById('admin-password').value = '';
         error.style.display = 'none';
         showDashboard();
-        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays()]);
+        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions()]);
     } catch (loginError) {
         error.textContent = loginError.message;
         error.style.display = 'block';
@@ -786,6 +786,135 @@ async function restoreHolidaysFromStorage() {
 }
 async function loadEventsFromServer() {
     await loadEvents();
+}
+
+let appHubQuestions = [];
+let editingHubQuestionId = null;
+
+function setHubQuestionStatus(message, isError = false) {
+    const status = document.getElementById('hub-question-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+function getHubQuestionState(item) {
+    const today = new Date().toLocaleDateString('sv', { timeZone: 'Europe/Moscow' });
+    if (item.available_from && item.available_from > today) return 'ещё не начался';
+    if (item.available_to && item.available_to < today) return 'истёк';
+    return 'активен';
+}
+
+function renderAdminHubQuestions() {
+    const list = document.getElementById('hub-questions-list');
+    if (!list) return;
+
+    if (!appHubQuestions.length) {
+        list.innerHTML = '<div class="empty">Вопросов пока нет: вход на хаб закрыт.</div>';
+        return;
+    }
+
+    list.innerHTML = renderCollapsibleList(appHubQuestions, item => `
+        <div class="event-item">
+            <h4>${escapeHtml(item.question)}</h4>
+            ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+            <div class="event-meta">
+                <span class="tag">${escapeHtml(getHubQuestionState(item))}</span>
+                <span class="tag">с ${item.available_from ? formatDate(item.available_from) : '—'}</span>
+                <span class="tag">по ${item.available_to ? formatDate(item.available_to) : '—'}</span>
+            </div>
+            <div class="event-actions">
+                <button type="button" onclick="editHubQuestion(${item.id})">Редактировать</button>
+                <button type="button" class="danger" onclick="deleteHubQuestion(${item.id})">Удалить</button>
+            </div>
+        </div>
+    `);
+}
+
+async function loadAdminHubQuestions() {
+    try {
+        appHubQuestions = await window.BuhloSupabase.getHubQuestions();
+        setHubQuestionStatus(appHubQuestions.length
+            ? 'Вопросы загружены из Supabase.'
+            : 'Вопросов пока нет: вход на хаб закрыт. Добавьте вопрос.');
+    } catch (error) {
+        appHubQuestions = [];
+        setHubQuestionStatus(`Не удалось загрузить вопросы: ${error.message}`, true);
+    }
+    renderAdminHubQuestions();
+}
+
+async function saveHubQuestion() {
+    const question = document.getElementById('hub-question-text').value.trim();
+    const answer = document.getElementById('hub-question-answer').value;
+    const description = document.getElementById('hub-question-description').value.trim();
+    const availableFrom = document.getElementById('hub-question-from').value;
+    const availableTo = document.getElementById('hub-question-to').value;
+
+    if (!question) {
+        setHubQuestionStatus('Укажите вопрос.', true);
+        return;
+    }
+    if (editingHubQuestionId === null && !answer.trim()) {
+        setHubQuestionStatus('Для нового вопроса укажите правильный ответ.', true);
+        return;
+    }
+    if (availableFrom && availableTo && availableTo < availableFrom) {
+        setHubQuestionStatus('Дата «по» не может быть раньше даты «с».', true);
+        return;
+    }
+
+    try {
+        await window.BuhloSupabase.saveHubQuestion({
+            id: editingHubQuestionId,
+            question,
+            answer,
+            description,
+            availableFrom,
+            availableTo
+        });
+        resetHubQuestionForm();
+        await loadAdminHubQuestions();
+        setHubQuestionStatus('Вопрос сохранён в Supabase.');
+    } catch (error) {
+        setHubQuestionStatus(`Не удалось сохранить вопрос: ${error.message}`, true);
+    }
+}
+
+function editHubQuestion(id) {
+    const item = appHubQuestions.find(entry => entry.id === id);
+    if (!item) return;
+    editingHubQuestionId = id;
+    document.getElementById('hub-question-text').value = item.question;
+    document.getElementById('hub-question-answer').value = '';
+    document.getElementById('hub-question-answer').placeholder = 'Новый ответ (пусто — не менять)';
+    document.getElementById('hub-question-description').value = item.description || '';
+    document.getElementById('hub-question-from').value = item.available_from || '';
+    document.getElementById('hub-question-to').value = item.available_to || '';
+    document.getElementById('save-hub-question-button').textContent = 'Сохранить изменения';
+    document.getElementById('hub-question-form-title').textContent = 'Редактировать вопрос входа';
+    document.getElementById('hub-question-text').focus();
+}
+
+function resetHubQuestionForm() {
+    editingHubQuestionId = null;
+    ['hub-question-text', 'hub-question-answer', 'hub-question-description', 'hub-question-from', 'hub-question-to']
+        .forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('hub-question-answer').placeholder = 'Правильный ответ';
+    document.getElementById('save-hub-question-button').textContent = 'Сохранить вопрос';
+    document.getElementById('hub-question-form-title').textContent = 'Добавить вопрос входа';
+}
+
+async function deleteHubQuestion(id) {
+    if (!confirm('Удалить вопрос входа из базы?')) return;
+    try {
+        await window.BuhloSupabase.deleteHubQuestion(id);
+        if (editingHubQuestionId === id) resetHubQuestionForm();
+        await loadAdminHubQuestions();
+        setHubQuestionStatus('Вопрос удалён.');
+    } catch (error) {
+        setHubQuestionStatus(`Не удалось удалить вопрос: ${error.message}`, true);
+    }
 }
 
 async function changeAdminPassword() {

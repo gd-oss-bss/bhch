@@ -11,13 +11,15 @@
     <div id="auth-overlay">
         <div class="auth-card">
             <h2>Контрольный вопрос</h2>
-            <p>Имя Директора всей этой х..и?</p>
-            <input type="text" id="auth-input" placeholder="Введите имя..." />
-            <label class="remember-auth">
-                <input type="checkbox" id="remember-auth" />
-                <span>Запомнить меня на этом устройстве</span>
-            </label>
-            <button onclick="checkAuth()">Войти в хаб</button>
+            <p id="hub-question">Загрузка вопроса…</p>
+            <div id="hub-form">
+                <input type="text" id="auth-input" placeholder="Введите ответ..." />
+                <label class="remember-auth">
+                    <input type="checkbox" id="remember-auth" />
+                    <span>Запомнить меня на этом устройстве</span>
+                </label>
+                <button onclick="checkAuth()">Войти в хаб</button>
+            </div>
 
             <div class="auth-card-divider">
                 <span>или</span>
@@ -40,6 +42,7 @@
                     <li><a href="#contacts-sec">Контакты</a></li>
                     <li><a href="#bdays-sec">ДР</a></li>
                     <li><a href="pages/admin.html" class="admin-link">🔑 Админка</a></li>
+                    <li><button type="button" class="logout-link" onclick="logoutHub()">🚪 Уйти в аут</button></li>
                 </ul>
             </nav>
         </header>
