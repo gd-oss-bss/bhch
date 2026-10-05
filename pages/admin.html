@@ -148,6 +148,41 @@
                 <div id="hub-questions-list" class="event-list"></div>
             </section>
 
+            <section class="panel">
+                <h3 id="gallery-category-form-title">Добавить категорию галереи</h3>
+                <input type="text" id="gallery-category-name" placeholder="Название категории" maxlength="60" />
+                <div class="admin-actions">
+                    <button type="button" id="save-gallery-category-button" onclick="saveGalleryCategory()">Сохранить категорию</button>
+                    <button type="button" class="secondary" onclick="resetGalleryCategoryForm()">Очистить</button>
+                </div>
+                <div class="admin-actions">
+                    <button type="button" class="info" onclick="loadAdminGallery()">🔄 Загрузить из Supabase</button>
+                </div>
+                <div id="gallery-category-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Категории галереи</h3>
+                <div id="gallery-categories-list" class="event-list"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Загрузить фото</h3>
+                <select id="gallery-upload-category"></select>
+                <input type="text" id="gallery-upload-caption" placeholder="Подпись (необязательно, для всех выбранных фото)" maxlength="200" />
+                <input type="file" id="gallery-upload-files" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
+                <div class="admin-actions">
+                    <button type="button" id="upload-gallery-button" onclick="uploadGalleryPhotos()">📤 Загрузить в Storage</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JPG, PNG, WebP или GIF до 10 МБ. Для каждого фото автоматически создаётся уменьшенная копия для плёнки; оригинал открывается по клику.</p>
+                <div id="gallery-photo-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
+                <h3>Фото галереи</h3>
+                <div id="gallery-photos-list" class="event-list"></div>
+            </section>
+
             <section class="panel" style="grid-column:1 / -1;">
                 <h3>Сменить пароль</h3>
                 <div class="password-form">

@@ -327,26 +327,212 @@ section h2 {
     padding-bottom: 10px;
 }
 
-.gallery-container {
+.gallery-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.gallery-tab {
+    width: auto;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    box-shadow: none;
+}
+
+.gallery-tab.active {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Photo film strip with horizontal scroll */
+.film-strip {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    padding: 6px 0;
+    background: #0a0a0a;
+    border: 1px solid #000;
+    border-radius: 6px;
+    scroll-snap-type: x proximity;
+    scrollbar-color: var(--accent) #151515;
+}
+
+.film-strip > .muted-message {
+    padding: 24px;
+}
+
+.film-frame {
+    position: relative;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 30px 10px;
+    border-right: 2px solid #000;
+    background: #141414;
+    cursor: pointer;
+    scroll-snap-align: start;
+    transition: background 0.2s;
+}
+
+.film-frame:hover {
+    background: #1d1d1d;
+}
+
+/* Perforation holes along the top and bottom edges */
+.film-frame::before,
+.film-frame::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 12px;
+    background: repeating-linear-gradient(90deg, transparent 0 5px, #d8d2bc 5px 15px, transparent 15px 20px);
+    background-position: center;
+    opacity: 0.85;
+}
+
+.film-frame::before { top: 9px; }
+.film-frame::after { bottom: 9px; }
+
+.film-photo {
+    width: 240px;
+    height: 170px;
+    background: #050505;
+    border: 1px solid #2a2a2a;
+    overflow: hidden;
+}
+
+.film-photo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.film-photo.film-error::after {
+    content: 'Нет фото';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.film-frame figcaption {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 22px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #e5b15a;
+    font-size: 0.7rem;
+    text-align: center;
+    pointer-events: none;
+}
+
+.film-frame figcaption:empty {
+    display: none;
+}
+
+.gallery-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.92);
+}
+
+.gallery-lightbox.hidden {
+    display: none;
+}
+
+.lightbox-content {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    align-items: center;
+    gap: 10px;
+    max-width: 90vw;
+    max-height: 92vh;
+    color: var(--text-main);
+}
+
+.lightbox-image {
+    max-width: 90vw;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.lightbox-image.hidden,
+.lightbox-status.hidden {
+    display: none;
+}
+
+.lightbox-caption {
+    color: var(--text-muted);
     text-align: center;
 }
 
-.gallery-photo {
-    display: block;
-    width: 100%;
-    max-width: 720px;
-    max-height: 600px;
-    height: auto;
-    object-fit: contain;
-    margin: 0 auto;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+.lightbox-close,
+.lightbox-nav {
+    width: auto;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: none;
 }
 
+.lightbox-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    padding: 8px 14px;
+    border-radius: 8px;
+}
+
+.lightbox-nav {
+    padding: 10px 16px;
+    border-radius: 50%;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.lightbox-nav:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+body.lightbox-open {
+    overflow: hidden;
+}
+
+@media (max-width: 600px) {
+    .film-photo {
+        width: 200px;
+        height: 145px;
+    }
+
+    .lightbox-nav {
+        position: absolute;
+        bottom: 14px;
+    }
+
+    .lightbox-prev { left: 14px; }
+    .lightbox-next { right: 14px; }
+}
 /* ===== TIMER STYLES ===== */
 .timer-display {
     display: grid;

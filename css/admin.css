@@ -387,3 +387,23 @@ textarea {
     text-decoration: line-through;
     opacity: 0.55;
 }
+
+.gallery-admin-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.gallery-admin-thumb {
+    flex: 0 0 auto;
+    width: 110px;
+    height: 80px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #050505;
+}
+
+.list-more .gallery-admin-item {
+    margin-bottom: 0;
+}

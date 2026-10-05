@@ -62,3 +62,12 @@ Supabase is the source of truth. The Pages workflow does not publish `data/` or 
 ## Hub entry questions
 
 The hub question lives in `public.hub_questions` (question, hashed answer, description, available from/to). Manage them in the admin page; answers are stored only as bcrypt hashes and verified server-side. With no active question the hub entry is closed. Run `supabase/schema.sql` and add at least one question after the first deploy.
+
+
+## Галерея
+
+- Таблицы gallery_categories и gallery_photos (чтение публичное, запись только админ).
+- Файлы в приватном бакете BHCH_DATA: gallery/<category_id>/<имя> и превью gallery/<category_id>/thumbs/<имя>.jpg; превью создаётся в браузере админа.
+- Категории и загрузка (JPG/PNG/WebP/GIF, до 10 МБ) - в админке. Старые файлы в корне gallery/ нужно перезалить через админку.
+- На главной - горизонтальная фотоплёнка по категориям, по клику оригинал грузится из Storage.
+- Для работы запустить supabase/schema.sql (таблицы, RLS, политика удаления в Storage).

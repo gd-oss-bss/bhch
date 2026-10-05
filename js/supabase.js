@@ -251,25 +251,88 @@
         return response.json();
     }
 
-    async function getGalleryPhotos() {
-        requireConfiguration();
-        const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
-        const listResponse = await fetch(`${url}/storage/v1/object/list/${BACKUP_BUCKET}`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prefix: 'gallery', limit: 100, sortBy: { column: 'name', order: 'asc' } })
-        });
-        if (!listResponse.ok) {
-            throw new Error(`Supabase Storage HTTP ${listResponse.status}: ${await listResponse.text()}`);
-        }
-        const files = (await listResponse.json()).filter(file => /\.(jpe?g|png|gif|webp|avif)$/i.test(file.name));
-        return Promise.all(files.map(async file => {
-            const response = await fetch(`${url}/storage/v1/object/authenticated/${BACKUP_BUCKET}/gallery/${encodeURIComponent(file.name)}`, { headers });
-            if (!response.ok) throw new Error(`Фото ${file.name}: HTTP ${response.status}`);
-            return { name: file.name, url: URL.createObjectURL(await response.blob()) };
-        }));
+    async function getGalleryCategories() {
+        return request('gallery_categories?select=id,name&order=id.asc');
     }
 
+    async function getGalleryPhotos() {
+        return request('gallery_photos?select=id,category_id,path,thumb_path,caption,created_at&order=id.desc');
+    }
+
+    async function getStorageBlobUrl(path) {
+        requireConfiguration();
+        const token = accessToken || anonKey;
+        const encoded = path.split('/').map(encodeURIComponent).join('/');
+        const response = await fetch(`${url}/storage/v1/object/authenticated/${BACKUP_BUCKET}/${encoded}`, {
+            headers: { apikey: anonKey, Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error(`Файл ${path}: HTTP ${response.status}`);
+        return URL.createObjectURL(await response.blob());
+    }
+
+    async function saveGalleryCategory(category) {
+        const body = JSON.stringify({ name: category.name });
+        if (category.id) {
+            return request(`gallery_categories?id=eq.${encodeURIComponent(category.id)}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=representation' },
+                body
+            }, true);
+        }
+        return request('gallery_categories', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body
+        }, true);
+    }
+
+    async function deleteGalleryCategory(id) {
+        const deleted = await request(`gallery_categories?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
+        }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила категорию (нет прав или её уже нет)');
+        }
+    }
+
+    async function addGalleryPhoto(photo) {
+        const rows = await request('gallery_photos', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify(photo)
+        }, true);
+        return rows[0];
+    }
+
+    async function deleteGalleryPhoto(id) {
+        const deleted = await request(`gallery_photos?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
+        }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила фото (нет прав или его уже нет)');
+        }
+    }
+
+    async function uploadStorageFile(path, blob) {
+        const encoded = path.split('/').map(encodeURIComponent).join('/');
+        await storageRequest(`object/${BACKUP_BUCKET}/${encoded}`, {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'false' },
+            body: blob
+        });
+    }
+
+    async function deleteStorageFiles(paths) {
+        const list = paths.filter(Boolean);
+        if (!list.length) return;
+        await storageRequest(`object/${BACKUP_BUCKET}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefixes: list })
+        });
+    }
     async function getHubQuestion() {
         const rows = await request('rpc/get_hub_question', { method: 'POST', body: '{}' });
         return rows && rows[0] ? rows[0] : null;
@@ -355,7 +418,15 @@
         deleteRegistration,
         hasRegistration,
         deleteHoliday,
+        getGalleryCategories,
         getGalleryPhotos,
+        getStorageBlobUrl,
+        saveGalleryCategory,
+        deleteGalleryCategory,
+        addGalleryPhoto,
+        deleteGalleryPhoto,
+        uploadStorageFile,
+        deleteStorageFiles,
         getHubQuestion,
         checkHubAnswer,
         getHubQuestions,

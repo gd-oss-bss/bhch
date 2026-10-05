@@ -39,7 +39,7 @@ async function checkAdminLogin() {
         document.getElementById('admin-password').value = '';
         error.style.display = 'none';
         showDashboard();
-        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions()]);
+        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery()]);
     } catch (loginError) {
         error.textContent = /invalid_credentials/.test(loginError.message)
             ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
@@ -923,6 +923,226 @@ async function deleteHubQuestion(id) {
         setHubQuestionStatus('Вопрос удалён.');
     } catch (error) {
         setHubQuestionStatus(`Не удалось удалить вопрос: ${error.message}`, true);
+    }
+}
+
+let appGalleryCategories = [];
+let appGalleryPhotos = [];
+let editingGalleryCategoryId = null;
+const GALLERY_MAX_BYTES = 10 * 1024 * 1024;
+const GALLERY_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+
+function setGalleryCategoryStatus(message, isError = false) {
+    const status = document.getElementById('gallery-category-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+function setGalleryPhotoStatus(message, isError = false) {
+    const status = document.getElementById('gallery-photo-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+async function loadAdminGallery() {
+    try {
+        [appGalleryCategories, appGalleryPhotos] = await Promise.all([
+            window.BuhloSupabase.getGalleryCategories(),
+            window.BuhloSupabase.getGalleryPhotos()
+        ]);
+        setGalleryCategoryStatus(appGalleryCategories.length
+            ? 'Галерея загружена из Supabase.'
+            : 'Категорий пока нет. Добавьте первую, затем загрузите фото.');
+    } catch (error) {
+        appGalleryCategories = [];
+        appGalleryPhotos = [];
+        setGalleryCategoryStatus(`Не удалось загрузить галерею: ${error.message}`, true);
+    }
+    renderAdminGallery();
+}
+
+function renderAdminGallery() {
+    const select = document.getElementById('gallery-upload-category');
+    const previous = select.value;
+    select.innerHTML = appGalleryCategories.length
+        ? appGalleryCategories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join('')
+        : '<option value="">Сначала добавьте категорию</option>';
+    if (appGalleryCategories.some(category => String(category.id) === previous)) select.value = previous;
+
+    const categories = document.getElementById('gallery-categories-list');
+    categories.innerHTML = appGalleryCategories.length
+        ? renderCollapsibleList(appGalleryCategories, category => `
+            <div class="event-item">
+                <h4>${escapeHtml(category.name)}</h4>
+                <div class="event-meta"><span class="tag">Фото: ${appGalleryPhotos.filter(photo => photo.category_id === category.id).length}</span></div>
+                <div class="event-actions">
+                    <button type="button" onclick="editGalleryCategory(${category.id})">Переименовать</button>
+                    <button type="button" class="danger" onclick="deleteGalleryCategory(${category.id})">Удалить</button>
+                </div>
+            </div>
+        `)
+        : '<div class="empty">Категорий пока нет.</div>';
+
+    const photos = document.getElementById('gallery-photos-list');
+    photos.querySelectorAll('img[data-blob]').forEach(image => URL.revokeObjectURL(image.dataset.blob));
+    photos.innerHTML = appGalleryPhotos.length
+        ? renderCollapsibleList(appGalleryPhotos, photo => {
+            const category = appGalleryCategories.find(item => item.id === photo.category_id);
+            return `
+            <div class="event-item gallery-admin-item">
+                <img class="gallery-admin-thumb" alt="" data-path="${escapeHtml(photo.thumb_path || photo.path)}" />
+                <div>
+                    <h4>${escapeHtml(photo.caption || 'Без подписи')}</h4>
+                    <div class="event-meta"><span class="tag">${escapeHtml(category ? category.name : '—')}</span></div>
+                    <div class="event-actions">
+                        <button type="button" class="danger" onclick="deleteGalleryPhoto(${photo.id})">Удалить</button>
+                    </div>
+                </div>
+            </div>`;
+        })
+        : '<div class="empty">Фото пока нет.</div>';
+    photos.querySelectorAll('img[data-path]').forEach(async image => {
+        try {
+            image.src = await window.BuhloSupabase.getStorageBlobUrl(image.dataset.path);
+            image.dataset.blob = image.src;
+        } catch (error) {
+            image.alt = 'Нет превью';
+        }
+    });
+}
+
+async function saveGalleryCategory() {
+    const name = document.getElementById('gallery-category-name').value.trim();
+    if (!name || name.length > 60) {
+        setGalleryCategoryStatus('Укажите название категории (до 60 символов).', true);
+        return;
+    }
+    try {
+        await window.BuhloSupabase.saveGalleryCategory({ id: editingGalleryCategoryId, name });
+        resetGalleryCategoryForm();
+        await loadAdminGallery();
+        setGalleryCategoryStatus('Категория сохранена в Supabase.');
+    } catch (error) {
+        const duplicate = /23505|duplicate/i.test(error.message);
+        setGalleryCategoryStatus(duplicate ? 'Категория с таким названием уже есть.' : `Не удалось сохранить категорию: ${error.message}`, true);
+    }
+}
+
+function editGalleryCategory(id) {
+    const category = appGalleryCategories.find(item => item.id === id);
+    if (!category) return;
+    editingGalleryCategoryId = id;
+    document.getElementById('gallery-category-name').value = category.name;
+    document.getElementById('save-gallery-category-button').textContent = 'Сохранить изменения';
+    document.getElementById('gallery-category-form-title').textContent = 'Переименовать категорию';
+    document.getElementById('gallery-category-name').focus();
+}
+
+function resetGalleryCategoryForm() {
+    editingGalleryCategoryId = null;
+    document.getElementById('gallery-category-name').value = '';
+    document.getElementById('save-gallery-category-button').textContent = 'Сохранить категорию';
+    document.getElementById('gallery-category-form-title').textContent = 'Добавить категорию галереи';
+}
+
+async function deleteGalleryCategory(id) {
+    const category = appGalleryCategories.find(item => item.id === id);
+    if (!category) return;
+    const photos = appGalleryPhotos.filter(photo => photo.category_id === id);
+    const warning = photos.length ? ` Вместе с ней будут удалены фото: ${photos.length}.` : '';
+    if (!confirm(`Удалить категорию «${category.name}»?${warning}`)) return;
+    try {
+        await window.BuhloSupabase.deleteStorageFiles(photos.flatMap(photo => [photo.path, photo.thumb_path]));
+        await window.BuhloSupabase.deleteGalleryCategory(id);
+        if (editingGalleryCategoryId === id) resetGalleryCategoryForm();
+        await loadAdminGallery();
+        setGalleryCategoryStatus('Категория удалена.');
+    } catch (error) {
+        setGalleryCategoryStatus(`Не удалось удалить категорию: ${error.message}`, true);
+        alert(`Не удалось удалить категорию: ${error.message}`);
+    }
+}
+
+async function createGalleryThumbnail(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 480 / bitmap.height, 640 / bitmap.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+    if (!blob) throw new Error('не удалось создать превью');
+    return blob;
+}
+
+async function uploadGalleryPhotos() {
+    const categoryId = Number(document.getElementById('gallery-upload-category').value);
+    const caption = document.getElementById('gallery-upload-caption').value.trim();
+    const input = document.getElementById('gallery-upload-files');
+    const files = Array.from(input.files || []);
+    const button = document.getElementById('upload-gallery-button');
+
+    if (!categoryId) {
+        setGalleryPhotoStatus('Сначала выберите категорию.', true);
+        return;
+    }
+    if (!files.length) {
+        setGalleryPhotoStatus('Выберите хотя бы один файл.', true);
+        return;
+    }
+    const invalid = files.find(file => !GALLERY_TYPES[file.type] || file.size > GALLERY_MAX_BYTES);
+    if (invalid) {
+        setGalleryPhotoStatus(`Файл «${invalid.name}» не подходит: нужен JPG, PNG, WebP или GIF до 10 МБ.`, true);
+        return;
+    }
+
+    button.disabled = true;
+    let uploaded = 0;
+    try {
+        for (const file of files) {
+            setGalleryPhotoStatus(`Загрузка ${uploaded + 1} из ${files.length}: ${file.name}`);
+            const key = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+            const path = `gallery/${categoryId}/${key}.${GALLERY_TYPES[file.type]}`;
+            const thumbPath = `gallery/${categoryId}/thumbs/${key}.jpg`;
+            const thumb = await createGalleryThumbnail(file);
+            await window.BuhloSupabase.uploadStorageFile(path, file);
+            try {
+                await window.BuhloSupabase.uploadStorageFile(thumbPath, thumb);
+                await window.BuhloSupabase.addGalleryPhoto({ category_id: categoryId, path, thumb_path: thumbPath, caption });
+            } catch (error) {
+                await window.BuhloSupabase.deleteStorageFiles([path, thumbPath]).catch(() => {});
+                throw error;
+            }
+            uploaded += 1;
+        }
+        input.value = '';
+        document.getElementById('gallery-upload-caption').value = '';
+        await loadAdminGallery();
+        setGalleryPhotoStatus(`Загружено фото: ${uploaded}.`);
+    } catch (error) {
+        await loadAdminGallery();
+        setGalleryPhotoStatus(`Загружено ${uploaded} из ${files.length}. Ошибка: ${error.message}`, true);
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function deleteGalleryPhoto(id) {
+    const photo = appGalleryPhotos.find(item => item.id === id);
+    if (!photo || !confirm('Удалить фото из галереи и из Storage?')) return;
+    try {
+        await window.BuhloSupabase.deleteGalleryPhoto(id);
+        await window.BuhloSupabase.deleteStorageFiles([photo.path, photo.thumb_path]).catch(error => {
+            console.warn('Файлы фото не удалены из Storage:', error.message);
+        });
+        await loadAdminGallery();
+        setGalleryPhotoStatus('Фото удалено.');
+    } catch (error) {
+        setGalleryPhotoStatus(`Не удалось удалить фото: ${error.message}`, true);
+        alert(`Не удалось удалить фото: ${error.message}`);
     }
 }
 

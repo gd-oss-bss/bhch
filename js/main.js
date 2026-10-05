@@ -87,6 +87,7 @@ async function checkAuth() {
     }
 }
 function logoutHub() {
+    closeGalleryPhoto();
     isAuthenticated = false;
     localStorage.removeItem(HUB_AUTH_KEY);
     if (countdownInterval) clearInterval(countdownInterval);
@@ -414,28 +415,183 @@ async function loadEvents() {
     renderEvents();
 }
 
+let galleryCategories = [];
+let galleryPhotos = [];
+let galleryActiveCategory = 'all';
+let galleryVisible = [];
+let galleryObserver = null;
+let galleryLightboxIndex = -1;
+let galleryLightboxUrl = '';
+
 async function loadGallery() {
     const container = document.getElementById('gallery-container');
     if (!container || !window.BuhloSupabase?.configured) return;
     try {
-        const photos = await window.BuhloSupabase.getGalleryPhotos();
-        container.innerHTML = '';
-        if (!photos.length) {
-            container.innerHTML = '<p class="muted-message">Фотографий пока нет.</p>';
-            return;
+        [galleryCategories, galleryPhotos] = await Promise.all([
+            window.BuhloSupabase.getGalleryCategories(),
+            window.BuhloSupabase.getGalleryPhotos()
+        ]);
+        if (galleryActiveCategory !== 'all' &&
+            !galleryCategories.some(category => category.id === galleryActiveCategory)) {
+            galleryActiveCategory = 'all';
         }
-        photos.forEach(photo => {
-            const image = document.createElement('img');
-            image.className = 'gallery-photo';
-            image.alt = 'Фото встреч';
-            image.loading = 'lazy';
-            image.src = photo.url;
-            container.appendChild(image);
-        });
+        renderGallery();
     } catch (error) {
         console.warn('Галерея недоступна:', error.message);
         container.innerHTML = '<p class="muted-message">Не удалось загрузить галерею.</p>';
     }
+}
+
+function renderGallery() {
+    const tabs = document.getElementById('gallery-tabs');
+    const container = document.getElementById('gallery-container');
+    if (!tabs || !container) return;
+
+    const countFor = id => galleryPhotos.filter(photo => photo.category_id === id).length;
+    const items = [{ id: 'all', name: 'Все', count: galleryPhotos.length }]
+        .concat(galleryCategories.map(category => ({ ...category, count: countFor(category.id) })));
+    tabs.innerHTML = galleryCategories.length ? items.map(item => `
+        <button type="button" class="gallery-tab${item.id === galleryActiveCategory ? ' active' : ''}"
+            onclick="selectGalleryCategory('${item.id}')">${escapeHtml(item.name)} (${item.count})</button>
+    `).join('') : '';
+
+    galleryVisible = galleryActiveCategory === 'all'
+        ? galleryPhotos
+        : galleryPhotos.filter(photo => photo.category_id === galleryActiveCategory);
+
+    if (galleryObserver) galleryObserver.disconnect();
+    container.querySelectorAll('img[data-blob]').forEach(image => URL.revokeObjectURL(image.dataset.blob));
+
+    if (!galleryVisible.length) {
+        container.innerHTML = '<p class="muted-message">Фотографий пока нет.</p>';
+        return;
+    }
+
+    container.innerHTML = galleryVisible.map((photo, index) => `
+        <figure class="film-frame" onclick="openGalleryPhoto(${index})">
+            <div class="film-photo"><img alt="${escapeHtml(photo.caption || 'Фото встреч')}" data-path="${escapeHtml(photo.thumb_path || photo.path)}" data-full="${escapeHtml(photo.path)}" /></div>
+            <figcaption>${escapeHtml(photo.caption || '')}</figcaption>
+        </figure>
+    `).join('');
+    container.scrollLeft = 0;
+
+    const loadThumb = async image => {
+        try {
+            image.src = await window.BuhloSupabase.getStorageBlobUrl(image.dataset.path);
+            image.dataset.blob = image.src;
+        } catch (error) {
+            if (image.dataset.path !== image.dataset.full) {
+                image.dataset.path = image.dataset.full;
+                loadThumb(image);
+            } else {
+                image.closest('.film-photo').classList.add('film-error');
+            }
+        }
+    };
+    const images = container.querySelectorAll('img[data-path]');
+    if ('IntersectionObserver' in window) {
+        galleryObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                galleryObserver.unobserve(entry.target);
+                loadThumb(entry.target);
+            });
+        }, { root: container, rootMargin: '300px' });
+        images.forEach(image => galleryObserver.observe(image));
+    } else {
+        images.forEach(loadThumb);
+    }
+}
+
+function selectGalleryCategory(id) {
+    galleryActiveCategory = id === 'all' ? 'all' : Number(id);
+    renderGallery();
+}
+
+function getGalleryLightbox() {
+    let box = document.getElementById('gallery-lightbox');
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'gallery-lightbox';
+    box.className = 'gallery-lightbox hidden';
+    box.innerHTML = `
+        <button type="button" class="lightbox-close" aria-label="Закрыть">✕</button>
+        <button type="button" class="lightbox-nav lightbox-prev" aria-label="Назад">‹</button>
+        <div class="lightbox-content">
+            <div class="lightbox-status">Загрузка…</div>
+            <img class="lightbox-image hidden" alt="" />
+            <div class="lightbox-caption"></div>
+        </div>
+        <button type="button" class="lightbox-nav lightbox-next" aria-label="Вперёд">›</button>
+    `;
+    box.addEventListener('click', event => {
+        if (event.target === box) closeGalleryPhoto();
+    });
+    box.querySelector('.lightbox-close').addEventListener('click', closeGalleryPhoto);
+    box.querySelector('.lightbox-prev').addEventListener('click', () => showGalleryPhoto(galleryLightboxIndex - 1));
+    box.querySelector('.lightbox-next').addEventListener('click', () => showGalleryPhoto(galleryLightboxIndex + 1));
+    document.addEventListener('keydown', event => {
+        if (box.classList.contains('hidden')) return;
+        if (event.key === 'Escape') closeGalleryPhoto();
+        if (event.key === 'ArrowLeft') showGalleryPhoto(galleryLightboxIndex - 1);
+        if (event.key === 'ArrowRight') showGalleryPhoto(galleryLightboxIndex + 1);
+    });
+    document.body.appendChild(box);
+    return box;
+}
+
+function openGalleryPhoto(index) {
+    getGalleryLightbox().classList.remove('hidden');
+    document.body.classList.add('lightbox-open');
+    showGalleryPhoto(index);
+}
+
+async function showGalleryPhoto(index) {
+    if (index < 0 || index >= galleryVisible.length) return;
+    galleryLightboxIndex = index;
+    const box = getGalleryLightbox();
+    const image = box.querySelector('.lightbox-image');
+    const status = box.querySelector('.lightbox-status');
+    const photo = galleryVisible[index];
+
+    image.classList.add('hidden');
+    status.textContent = 'Загрузка…';
+    status.classList.remove('hidden');
+    box.querySelector('.lightbox-caption').textContent = photo.caption || '';
+    box.querySelector('.lightbox-prev').disabled = index === 0;
+    box.querySelector('.lightbox-next').disabled = index === galleryVisible.length - 1;
+    if (galleryLightboxUrl) {
+        URL.revokeObjectURL(galleryLightboxUrl);
+        galleryLightboxUrl = '';
+    }
+
+    try {
+        const url = await window.BuhloSupabase.getStorageBlobUrl(photo.path);
+        if (galleryLightboxIndex !== index || box.classList.contains('hidden')) {
+            URL.revokeObjectURL(url);
+            return;
+        }
+        galleryLightboxUrl = url;
+        image.src = url;
+        image.alt = photo.caption || 'Фото встреч';
+        image.classList.remove('hidden');
+        status.classList.add('hidden');
+    } catch (error) {
+        if (galleryLightboxIndex === index) status.textContent = 'Не удалось загрузить фото.';
+    }
+}
+
+function closeGalleryPhoto() {
+    const box = document.getElementById('gallery-lightbox');
+    if (!box) return;
+    box.classList.add('hidden');
+    document.body.classList.remove('lightbox-open');
+    galleryLightboxIndex = -1;
+    if (galleryLightboxUrl) {
+        URL.revokeObjectURL(galleryLightboxUrl);
+        galleryLightboxUrl = '';
+    }
+    box.querySelector('.lightbox-image').removeAttribute('src');
 }
 async function loadBirthdays() {
     if (window.BuhloSupabase?.configured) {
