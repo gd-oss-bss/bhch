@@ -732,7 +732,13 @@ function parseBackupList(data, key) {
 
 async function backupEventsToStorage() {
     try {
-        await window.BuhloSupabase.uploadBackup('events', { events: appEvents });
+        const events = appEvents.map(event => ({
+            ...event,
+            participants: appRegistrations
+                .filter(item => item.event_id === event.id)
+                .map(item => ({ name: item.name, contact: item.contact, notes: item.notes, registered_at: item.registered_at }))
+        }));
+        await window.BuhloSupabase.uploadBackup('events', { events });
         setEventsStatus(`Бэкап событий сохранён в Storage (${appEvents.length}).`);
     } catch (error) {
         setEventsStatus(`Не удалось сохранить бэкап: ${error.message}`, true);
@@ -743,11 +749,18 @@ async function restoreEventsFromStorage() {
     try {
         const events = parseBackupList(await window.BuhloSupabase.downloadBackup('events'), 'events');
         if (!confirm(`Восстановить из бэкапа события: ${events.length}? Существующие события с теми же id будут перезаписаны, остальные не удаляются.`)) return;
+        const existing = await window.BuhloSupabase.getAdminRegistrations();
+        const personKey = (eventId, person) => [eventId, person.name, person.contact || 'не указан', person.notes || ''].join('\u0001');
+        const known = new Set(existing.map(item => personKey(item.event_id, item)));
+        let restoredPeople = 0;
         for (const item of events) {
             await window.BuhloSupabase.saveEvent(item);
+            const missing = (Array.isArray(item.participants) ? item.participants : [])
+                .filter(person => person && person.name && !known.has(personKey(item.id, person)));
+            restoredPeople += await window.BuhloSupabase.addEventRegistrations(item.id, missing);
         }
         await loadEvents();
-        setEventsStatus(`События восстановлены из бэкапа (${events.length}).`);
+        setEventsStatus(`Восстановлено из бэкапа: событий ${events.length}, участников ${restoredPeople}.`);
     } catch (error) {
         setEventsStatus(`Не удалось восстановить из бэкапа: ${error.message}`, true);
     }

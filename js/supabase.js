@@ -169,6 +169,25 @@
         }
     }
 
+    async function addEventRegistrations(eventId, participants) {
+        if (!participants.length) return 0;
+        const rows = participants.map(person => ({
+            event_id: Number(eventId),
+            registration_key: crypto.randomUUID(),
+            name: String(person.name || '').trim().slice(0, 120),
+            contact: String(person.contact || 'не указан').slice(0, 200),
+            notes: String(person.notes || '').slice(0, 2000),
+            ...(person.registered_at ? { registered_at: person.registered_at } : {})
+        })).filter(row => row.name);
+        if (!rows.length) return 0;
+        const saved = await request('event_registrations', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify(rows)
+        }, true);
+        return Array.isArray(saved) ? saved.length : 0;
+    }
+
     async function replaceBirthdays(birthdays) {
         await request('rpc/replace_birthdays', {
             method: 'POST',
@@ -393,6 +412,7 @@
 
     window.BuhloSupabase = {
         logSiteVisit,
+        addEventRegistrations,
         getVisitStats,
         getStorageStats,
         get configured() { return configured; },
