@@ -1,7 +1,3 @@
-function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
-
 function formatBytes(bytes) {
     const n = Number(bytes) || 0;
     if (n < 1024) return `${n} Б`;
@@ -16,43 +12,13 @@ function card(label, value, hint = '') {
     return `<div class="stats-card"><div class="stats-value">${escapeHtml(value)}</div><div class="stats-label">${escapeHtml(label)}</div>${hint ? `<div class="stats-hint">${escapeHtml(hint)}</div>` : ''}</div>`;
 }
 
-function showDashboard() {
-    document.getElementById('auth-block').classList.add('hidden');
-    document.getElementById('topbar').classList.remove('hidden');
-    document.getElementById('dashboard').classList.remove('hidden');
-}
-
-function showAuth() {
-    document.getElementById('auth-block').classList.remove('hidden');
-    document.getElementById('topbar').classList.add('hidden');
-    document.getElementById('dashboard').classList.add('hidden');
-}
-
-async function checkAdminLogin() {
-    const email = document.getElementById('admin-email').value.trim();
-    const password = document.getElementById('admin-password').value;
-    const error = document.getElementById('admin-error');
-    try {
-        await window.BuhloSupabase.signIn(email, password);
-        document.getElementById('admin-password').value = '';
-        error.style.display = 'none';
-        showDashboard();
-        await loadStats();
-    } catch (loginError) {
-        error.textContent = /invalid_credentials/.test(loginError.message)
-            ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
-            : loginError.message;
-        error.style.display = 'block';
-        document.getElementById('admin-password').value = '';
-        window.BuhloSupabase.signOut();
-    }
-}
-
-function logoutAdmin() {
-    window.BuhloSupabase.signOut();
-    document.getElementById('admin-password').value = '';
-    document.getElementById('admin-error').style.display = 'none';
-    showAuth();
+function toggleStatsView() {
+    const stats = document.getElementById('stats-view');
+    const showStats = stats.classList.contains('hidden');
+    stats.classList.toggle('hidden', !showStats);
+    document.getElementById('dashboard').classList.toggle('hidden', showStats);
+    document.getElementById('view-toggle').textContent = showStats ? 'Админка' : 'Статистика';
+    if (showStats) loadStats();
 }
 
 async function loadStats() {

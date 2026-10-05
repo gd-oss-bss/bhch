@@ -26,6 +26,7 @@ function showAuth() {
     document.getElementById('auth-block').classList.remove('hidden');
     document.getElementById('topbar').classList.add('hidden');
     document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('stats-view').classList.add('hidden');
 }
 
 async function checkAdminLogin() {
@@ -56,6 +57,8 @@ function logoutAdmin() {
     isAdminAuthenticated = false;
     document.getElementById('admin-password').value = '';
     document.getElementById('admin-error').style.display = 'none';
+    document.getElementById('stats-view').classList.add('hidden');
+    document.getElementById('view-toggle').textContent = 'Статистика';
     showAuth();
 }
 
