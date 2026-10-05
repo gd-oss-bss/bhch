@@ -158,9 +158,13 @@
     }
 
     async function deleteRegistration(id) {
-        await request(`event_registrations?id=eq.${encodeURIComponent(id)}`, {
-            method: 'DELETE'
+        const deleted = await request(`event_registrations?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
         }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила запись (нет прав или записи уже нет)');
+        }
     }
 
     async function replaceBirthdays(birthdays) {
