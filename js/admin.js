@@ -6,6 +6,7 @@ let appEvents = [];
 let appBirthdays = [];
 let appHolidays = [];
 let appRegistrations = [];
+const pendingRegistrationDeletes = new Set();
 let editingEventId = null;
 let editingBirthdayIndex = null;
 let editingHolidayIndex = null;
@@ -717,8 +718,12 @@ function renderEvents() {
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
                 ${registrations.length ? `<div class="registration-list"><strong>Записи:</strong>${registrations.map(person =>
-                    `<div class="registration-row"><p>${escapeHtml(person.name)} — ${escapeHtml(person.contact || 'не указан')}${person.notes ? `; ${escapeHtml(person.notes)}` : ''}</p><button type="button" class="danger" onclick="deleteRegistration(${person.id})">Удалить</button></div>`
+                    `<div class="registration-row${pendingRegistrationDeletes.has(person.id) ? ' pending-delete' : ''}"><p>${escapeHtml(person.name)} — ${escapeHtml(person.contact || 'не указан')}${person.notes ? `; ${escapeHtml(person.notes)}` : ''}</p>${pendingRegistrationDeletes.has(person.id)
+                    ? `<button type="button" class="secondary" onclick="toggleRegistrationDelete(${person.id})">Отмена</button>`
+                    : `<button type="button" class="danger" onclick="toggleRegistrationDelete(${person.id})">Удалить</button>`}</div>`
                 ).join('')}</div>` : ''}
+                ${registrations.some(person => pendingRegistrationDeletes.has(person.id))
+                    ? `<button type="button" class="danger" onclick="confirmRegistrationDeletes(${event.id})">Подтвердить удаление в базе (${registrations.filter(person => pendingRegistrationDeletes.has(person.id)).length})</button>` : ''}
                 <div class="event-actions">
                     <button type="button" onclick="editEvent(${event.id})">Редактировать</button>
                     <button type="button" class="danger" onclick="deleteEvent(${event.id})">Удалить</button>
@@ -808,18 +813,29 @@ async function deleteEvent(eventId) {
     setEventsStatus('Событие удалено из Supabase.');
 }
 
-async function deleteRegistration(registrationId) {
-    if (!confirm('Удалить участника из записи?')) return;
-    try {
-        await window.BuhloSupabase.deleteRegistration(registrationId);
-        appRegistrations = appRegistrations.filter(item => item.id !== registrationId);
-        renderEvents();
-        setEventsStatus('Участник удалён.');
-    } catch (error) {
-        setEventsStatus(`Не удалось удалить участника: ${error.message}`, true);
-    }
+function toggleRegistrationDelete(registrationId) {
+    if (pendingRegistrationDeletes.has(registrationId)) pendingRegistrationDeletes.delete(registrationId);
+    else pendingRegistrationDeletes.add(registrationId);
+    renderEvents();
 }
 
+async function confirmRegistrationDeletes(eventId) {
+    const ids = appRegistrations
+        .filter(item => item.event_id === eventId && pendingRegistrationDeletes.has(item.id))
+        .map(item => item.id);
+    if (!ids.length || !confirm(`Удалить из базы участников: ${ids.length}?`)) return;
+    try {
+        for (const id of ids) {
+            await window.BuhloSupabase.deleteRegistration(id);
+            pendingRegistrationDeletes.delete(id);
+            appRegistrations = appRegistrations.filter(item => item.id !== id);
+        }
+        setEventsStatus('Участники удалены из базы.');
+    } catch (error) {
+        setEventsStatus(`Не удалось удалить участника в базе: ${error.message}`, true);
+    }
+    renderEvents();
+}
 function resetForm() {
     editingEventId = null;
     document.getElementById('event-title').value = '';
