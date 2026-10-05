@@ -480,6 +480,23 @@ $$;
 
 REVOKE ALL ON FUNCTION public.get_public_event_participants() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.submit_event_registration(bigint, uuid, text, text, text) FROM PUBLIC;
+CREATE OR REPLACE FUNCTION public.check_event_registration(p_event_id bigint, p_registration_key uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.event_registrations AS registrations
+        WHERE registrations.event_id = p_event_id
+          AND registrations.registration_key = p_registration_key
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.check_event_registration(bigint, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.check_event_registration(bigint, uuid) TO anon, authenticated;
 REVOKE ALL ON FUNCTION public.replace_events(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.replace_birthdays(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.replace_holidays(jsonb) FROM PUBLIC;
@@ -504,3 +521,32 @@ END
 $$;
 
 NOTIFY pgrst, 'reload schema';
+
+-- Backups: private Storage bucket BHCH_DATA (data/events.json, birthdays.json, holidays.json).
+-- Only admins can read and write; the bucket stays non-public.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('BHCH_DATA', 'BHCH_DATA', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Admins read BHCH_DATA" ON storage.objects;
+CREATE POLICY "Admins read BHCH_DATA"
+    ON storage.objects FOR SELECT TO authenticated
+    USING (bucket_id = 'BHCH_DATA' AND public.is_buhlo_admin());
+
+DROP POLICY IF EXISTS "Admins insert BHCH_DATA" ON storage.objects;
+CREATE POLICY "Admins insert BHCH_DATA"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (bucket_id = 'BHCH_DATA' AND public.is_buhlo_admin());
+
+DROP POLICY IF EXISTS "Admins update BHCH_DATA" ON storage.objects;
+CREATE POLICY "Admins update BHCH_DATA"
+    ON storage.objects FOR UPDATE TO authenticated
+    USING (bucket_id = 'BHCH_DATA' AND public.is_buhlo_admin())
+    WITH CHECK (bucket_id = 'BHCH_DATA' AND public.is_buhlo_admin());
+
+-- Gallery: photos in BHCH_DATA/gallery are readable by everyone (the site loads them with the anon key).
+-- Everything else in the bucket (data/ backups) stays admin-only.
+DROP POLICY IF EXISTS "Public read BHCH_DATA gallery" ON storage.objects;
+CREATE POLICY "Public read BHCH_DATA gallery"
+    ON storage.objects FOR SELECT TO anon, authenticated
+    USING (bucket_id = 'BHCH_DATA' AND (storage.foldername(name))[1] = 'gallery');

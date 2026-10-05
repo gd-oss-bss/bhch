@@ -49,17 +49,15 @@
                     <button type="button" class="secondary" onclick="resetForm()">Очистить</button>
                 </div>
 
-                <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="downloadEventsJson()">📥 Скачать events.json</button>
-                    <input id="import-events-input" type="file" accept="application/json,.json" class="hidden" onchange="importEventsJson(this)" />
-                    <button type="button" class="secondary" onclick="document.getElementById('import-events-input').click()">📤 Импорт JSON</button>
-                </div>
-
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
-                <div class="admin-actions">
+<div class="admin-actions">
                     <button type="button" class="success" onclick="syncEventsWithServer('save')">💾 Сохранить в Supabase</button>
                     <button type="button" class="info" onclick="syncEventsWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
+                <div class="admin-actions">
+                    <button type="button" class="secondary" onclick="backupEventsToStorage()">☁️ Бэкап в Storage (events.json)</button>
+                    <button type="button" class="secondary" onclick="restoreEventsFromStorage()">♻️ Восстановить из бэкапа</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
                 <div id="events-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
 
@@ -77,17 +75,15 @@
                     <button type="button" class="secondary" onclick="resetBirthdayForm()">Очистить</button>
                 </div>
 
-                <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="downloadBirthdaysJson()">📥 Скачать birthdays.json</button>
-                    <input id="import-birthdays-input" type="file" accept="application/json,.json" class="hidden" onchange="importBirthdaysJson(this)" />
-                    <button type="button" class="secondary" onclick="document.getElementById('import-birthdays-input').click()">📤 Импорт JSON</button>
-                </div>
-
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
-                <div class="admin-actions">
+<div class="admin-actions">
                     <button type="button" class="success" onclick="syncBirthdaysWithServer('save')">💾 Сохранить в Supabase</button>
                     <button type="button" class="info" onclick="syncBirthdaysWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
+                <div class="admin-actions">
+                    <button type="button" class="secondary" onclick="backupBirthdaysToStorage()">☁️ Бэкап в Storage (birthdays.json)</button>
+                    <button type="button" class="secondary" onclick="restoreBirthdaysFromStorage()">♻️ Восстановить из бэкапа</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
                 <button type="button" id="legacy-birthday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateBirthdayDraft()">Импортировать старый локальный черновик</button>
                 <div id="birthday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
@@ -109,16 +105,15 @@
                     <button type="button" id="save-holiday-button" onclick="saveHoliday()">Сохранить праздник</button>
                     <button type="button" class="secondary" onclick="resetHolidayForm()">Очистить</button>
                 </div>
-                <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="downloadHolidaysJson()">📥 Скачать holidays.json</button>
-                    <input id="import-holidays-input" type="file" accept="application/json,.json" class="hidden" onchange="importHolidaysJson(this)" />
-                    <button type="button" class="secondary" onclick="document.getElementById('import-holidays-input').click()">📤 Импорт JSON</button>
-                </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
-                <div class="admin-actions">
+<div class="admin-actions">
                     <button type="button" class="success" onclick="syncHolidaysWithServer('save')">💾 Сохранить в Supabase</button>
                     <button type="button" class="info" onclick="syncHolidaysWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
+                <div class="admin-actions">
+                    <button type="button" class="secondary" onclick="backupHolidaysToStorage()">☁️ Бэкап в Storage (holidays.json)</button>
+                    <button type="button" class="secondary" onclick="restoreHolidaysFromStorage()">♻️ Восстановить из бэкапа</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
                 <button type="button" id="legacy-holiday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateHolidayDraft()">Импортировать старый локальный черновик</button>
                 <div id="holiday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>

@@ -6,6 +6,7 @@
     let accessToken = '';
     let refreshToken = '';
     let isAdmin = false;
+    const BACKUP_BUCKET = 'BHCH_DATA';
 
     function requireConfiguration() {
         if (!configured) {
@@ -185,6 +186,13 @@
         return request('event_registrations?select=id,event_id,name,contact,notes,registered_at&order=registered_at.asc', {}, true);
     }
 
+    async function hasRegistration(eventId, registrationKey) {
+        return request('rpc/check_event_registration', {
+            method: 'POST',
+            body: JSON.stringify({ p_event_id: eventId, p_registration_key: registrationKey })
+        });
+    }
+
     async function submitRegistration(eventId, registrationKey, name, contact, notes) {
         return request('rpc/submit_event_registration', {
             method: 'POST',
@@ -196,6 +204,59 @@
                 p_notes: notes || ''
             })
         });
+    }
+
+    async function storageRequest(path, options = {}, canRefresh = true) {
+        requireConfiguration();
+        if (!accessToken) throw new Error('Сначала войдите в админку.');
+        const response = await fetch(`${url}/storage/v1/${path}`, {
+            ...options,
+            headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, ...options.headers },
+            cache: 'no-store'
+        });
+        if ((response.status === 401 || response.status === 400) && canRefresh && refreshToken) {
+            const detail = await response.clone().text();
+            if (response.status === 401 || /expired|jwt/i.test(detail)) {
+                await refreshSession();
+                return storageRequest(path, options, false);
+            }
+        }
+        if (!response.ok) {
+            throw new Error(`Supabase Storage HTTP ${response.status}: ${await response.text()}`);
+        }
+        return response;
+    }
+
+    async function uploadBackup(name, data) {
+        await storageRequest(`object/${BACKUP_BUCKET}/data/${name}.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-upsert': 'true' },
+            body: JSON.stringify(data, null, 2)
+        });
+    }
+
+    async function downloadBackup(name) {
+        const response = await storageRequest(`object/authenticated/${BACKUP_BUCKET}/data/${name}.json`);
+        return response.json();
+    }
+
+    async function getGalleryPhotos() {
+        requireConfiguration();
+        const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
+        const listResponse = await fetch(`${url}/storage/v1/object/list/${BACKUP_BUCKET}`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefix: 'gallery', limit: 100, sortBy: { column: 'name', order: 'asc' } })
+        });
+        if (!listResponse.ok) {
+            throw new Error(`Supabase Storage HTTP ${listResponse.status}: ${await listResponse.text()}`);
+        }
+        const files = (await listResponse.json()).filter(file => /\.(jpe?g|png|gif|webp|avif)$/i.test(file.name));
+        return Promise.all(files.map(async file => {
+            const response = await fetch(`${url}/storage/v1/object/authenticated/${BACKUP_BUCKET}/gallery/${encodeURIComponent(file.name)}`, { headers });
+            if (!response.ok) throw new Error(`Фото ${file.name}: HTTP ${response.status}`);
+            return { name: file.name, url: URL.createObjectURL(await response.blob()) };
+        }));
     }
 
     window.BuhloSupabase = {
@@ -241,6 +302,10 @@
         saveEvent,
         deleteEvent,
         deleteRegistration,
+        hasRegistration,
+        getGalleryPhotos,
+        uploadBackup,
+        downloadBackup,
         replaceBirthdays,
         replaceHolidays,
         getAdminRegistrations,

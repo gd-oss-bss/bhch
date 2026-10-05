@@ -33,6 +33,9 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Exclude Supabase-hosted content
+        # data/*.json are backups and gallery photos live in Supabase Storage (BHCH_DATA)
+        run: rm -rf data gallery
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

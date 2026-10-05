@@ -50,3 +50,11 @@ gallery/                Trip gallery assets
 ```
 
 There is no separate build step. GitHub Actions publishes the repository to GitHub Pages when changes are pushed to `main`.
+
+## JSON backups
+
+Admin backups live in the private Supabase Storage bucket `BHCH_DATA` (folder `data/`: `events.json`, `birthdays.json`, `holidays.json`). Use the **Backup to Storage** and **Restore from backup** buttons in the admin page; the live data stays in the database. Run `supabase/schema.sql` to create the admin-only Storage policies.
+
+## Deployment and gallery
+
+Supabase is the source of truth. The Pages workflow does not publish `data/` or `gallery/`. Gallery photos are read from the Storage bucket `BHCH_DATA` (folder `gallery/`); run `supabase/schema.sql` to allow public read of that folder only.

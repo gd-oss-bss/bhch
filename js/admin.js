@@ -109,10 +109,7 @@ async function loadEvents() {
         if (appEvents.length) {
             localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
         } else {
-            const response = await fetch('../data/events.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Опубликованные события: HTTP ${response.status}`);
-            appEvents = parseEvents(await response.json());
-            setEventsStatus('Supabase пока пуст; загружены события из data/events.json. Импортируйте JSON, чтобы заполнить базу.');
+            setEventsStatus('База событий пуста. Добавьте события или восстановите их из бэкапа.');
         }
     } catch (error) {
         appEvents = getSavedEvents();
@@ -175,28 +172,16 @@ async function loadAdminBirthdays() {
     try {
         appBirthdays = await window.BuhloSupabase.getBirthdays();
         if (!appBirthdays.length) {
-            const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Опубликованные дни рождения: HTTP ${response.status}`);
-            appBirthdays = parseBirthdays(await response.json());
-            setBirthdayStatus(`Supabase пока пуст; загружены ${appBirthdays.length} записей из data/birthdays.json. Нажмите «Сохранить в Supabase», чтобы импортировать их.`);
+            setBirthdayStatus('База дней рождения пуста. Добавьте записи или восстановите их из бэкапа.');
         }
         renderAdminBirthdays();
         const hasDraft = localStorage.getItem(BIRTHDAYS_DRAFT_KEY) !== null;
         document.getElementById('legacy-birthday-draft').classList.toggle('hidden', !hasDraft);
         if (hasDraft) setBirthdayStatus('Найден старый локальный черновик; он не удалён. Импортируйте его отдельно, если он нужен.');
     } catch (error) {
-        try {
-            const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            appBirthdays = parseBirthdays(await response.json());
-        } catch (fallbackError) {
-            appBirthdays = [];
-            setBirthdayStatus(`Не удалось загрузить дни рождения: ${fallbackError.message}`, true);
-        }
+        appBirthdays = [];
         renderAdminBirthdays();
-        if (!document.getElementById('birthday-status').classList.contains('error')) {
-            setBirthdayStatus(`Supabase недоступен; показан опубликованный список. ${error.message}`, true);
-        }
+        setBirthdayStatus(`Не удалось загрузить дни рождения из Supabase: ${error.message}`, true);
     }
 }
 
@@ -242,28 +227,16 @@ async function loadAdminHolidays() {
     try {
         appHolidays = await window.BuhloSupabase.getHolidays();
         if (!appHolidays.length) {
-            const response = await fetch('../data/holidays.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Опубликованные праздники: HTTP ${response.status}`);
-            appHolidays = parseHolidays(await response.json());
-            setHolidayStatus(`Supabase пока пуст; загружены ${appHolidays.length} записей из data/holidays.json. Сохраните изменения, чтобы внести их в базу.`);
+            setHolidayStatus('База праздников пуста. Добавьте записи или восстановите их из бэкапа.');
         }
         renderAdminHolidays();
         const hasDraft = localStorage.getItem(HOLIDAYS_DRAFT_KEY) !== null;
         document.getElementById('legacy-holiday-draft').classList.toggle('hidden', !hasDraft);
         if (hasDraft) setHolidayStatus('Найден старый локальный черновик; он не удалён. Импортируйте его отдельно, если он нужен.');
     } catch (error) {
-        try {
-            const response = await fetch('../data/holidays.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            appHolidays = parseHolidays(await response.json());
-        } catch (fallbackError) {
-            appHolidays = [];
-            setHolidayStatus(`Не удалось загрузить праздники: ${fallbackError.message}`, true);
-        }
+        appHolidays = [];
         renderAdminHolidays();
-        if (!document.getElementById('holiday-status').classList.contains('error')) {
-            setHolidayStatus(`Supabase недоступен; показан опубликованный список. ${error.message}`, true);
-        }
+        setHolidayStatus(`Не удалось загрузить праздники из Supabase: ${error.message}`, true);
     }
 }
 
@@ -382,20 +355,7 @@ async function syncHolidaysWithServer(action) {
     try {
         if (action === 'save') {
             if (appHolidays.length === 0) {
-                const response = await fetch('../data/holidays.json', { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Не удалось загрузить data/holidays.json (HTTP ${response.status})`);
-                const published = parseHolidays(await response.json());
-                if (published.length === 0) {
-                    setHolidayStatus('Опубликованный файл holidays.json тоже пуст.', true);
-                    return;
-                }
-                if (!confirm(`В Supabase список пуст. Импортировать ${published.length} записей из data/holidays.json?`)) {
-                    return;
-                }
-                await window.BuhloSupabase.replaceHolidays(published);
-                appHolidays = published;
-                renderAdminHolidays();
-                setHolidayStatus(`${published.length} праздников импортировано из data/holidays.json в Supabase.`);
+                setHolidayStatus('Список пуст: сохранение очистило бы базу. Восстановите данные из бэкапа.', true);
                 return;
             }
             await window.BuhloSupabase.replaceHolidays(appHolidays);
@@ -413,20 +373,15 @@ async function syncHolidaysWithServer(action) {
 async function syncEventsWithServer(action) {
     try {
         if (action === 'save') {
-            let events = appEvents;
+            const events = appEvents;
             if (events.length === 0) {
-                const response = await fetch('../data/events.json', { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Не удалось загрузить data/events.json (HTTP ${response.status})`);
-                events = parseEvents(await response.json());
-                if (events.length === 0) {
-                    setEventsStatus('Опубликованный файл events.json тоже пуст.', true);
-                    return;
-                }
-                if (!confirm(`В Supabase список пуст. Импортировать ${events.length} записей из data/events.json?`)) {
-                    return;
-                }
+                setEventsStatus('Список пуст. Восстановите события из бэкапа или добавьте их вручную.', true);
+                return;
             }
-            await window.BuhloSupabase.replaceEvents(events);
+            // Только добавляем и обновляем: события, которых нет в этом списке, не удаляются.
+            for (const item of events) {
+                await window.BuhloSupabase.saveEvent(item);
+            }
             appEvents = await window.BuhloSupabase.getEvents();
             localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
             renderEvents();
@@ -567,91 +522,11 @@ async function migrateBirthdayDraft() {
     }
 }
 
-function downloadBirthdaysJson() {
-    const blob = new Blob([JSON.stringify({ birthdays: appBirthdays }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'birthdays.json';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setBirthdayStatus('Резервная копия birthdays.json скачана.');
-}
-
-function downloadHolidaysJson() {
-    const blob = new Blob([JSON.stringify({ holidays: appHolidays }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'holidays.json';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setHolidayStatus('Резервная копия holidays.json скачана.');
-}
-
 function setHolidayStatus(message, isError = false) {
     const status = document.getElementById('holiday-status');
     status.textContent = message;
     status.classList.remove('hidden', 'error');
     if (isError) status.classList.add('error');
-}
-
-function importHolidaysJson(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-        try {
-            if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
-            const imported = parseHolidays(reader.result);
-            if (!confirm('Полностью заменить список праздников в общей базе данными из этого файла?')) return;
-            await window.BuhloSupabase.replaceHolidays(imported);
-            appHolidays = imported;
-            renderAdminHolidays();
-            setHolidayStatus('JSON импортирован в Supabase.');
-        } catch (error) {
-            setHolidayStatus(`Ошибка импорта: ${error.message}`, true);
-        } finally {
-            input.value = '';
-        }
-    };
-    reader.onerror = () => {
-        setHolidayStatus('Не удалось прочитать выбранный файл.', true);
-        input.value = '';
-    };
-    reader.readAsText(file);
-}
-
-function importBirthdaysJson(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-        try {
-            if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
-            const imported = parseBirthdays(reader.result);
-            if (!confirm('Полностью заменить список дней рождения в общей базе данными из этого файла?')) return;
-            await window.BuhloSupabase.replaceBirthdays(imported);
-            appBirthdays = imported;
-            renderAdminBirthdays();
-            setBirthdayStatus('JSON импортирован в Supabase.');
-        } catch (error) {
-            setBirthdayStatus(`Ошибка импорта: ${error.message}`, true);
-        } finally {
-            input.value = '';
-        }
-    };
-    reader.onerror = () => {
-        setBirthdayStatus('Не удалось прочитать выбранный файл.', true);
-        input.value = '';
-    };
-    reader.readAsText(file);
 }
 
 async function loadBirthdaysFromServer() {
@@ -667,20 +542,7 @@ async function syncBirthdaysWithServer(action) {
     try {
         if (action === 'save') {
             if (appBirthdays.length === 0) {
-                const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Не удалось загрузить data/birthdays.json (HTTP ${response.status})`);
-                const published = parseBirthdays(await response.json());
-                if (published.length === 0) {
-                    setBirthdayStatus('Опубликованный файл birthdays.json тоже пуст.', true);
-                    return;
-                }
-                if (!confirm(`В Supabase список пуст. Импортировать ${published.length} записей из data/birthdays.json?`)) {
-                    return;
-                }
-                await window.BuhloSupabase.replaceBirthdays(published);
-                appBirthdays = published;
-                renderAdminBirthdays();
-                setBirthdayStatus(`${published.length} дней рождения импортировано из data/birthdays.json в Supabase.`);
+                setBirthdayStatus('Список пуст: сохранение очистило бы базу. Восстановите данные из бэкапа.', true);
                 return;
             }
             await saveBirthdaysToServer();
@@ -850,42 +712,78 @@ function resetForm() {
     document.getElementById('event-form-title').textContent = 'Добавить событие';
 }
 
-function downloadEventsJson() {
-    const blob = new Blob([JSON.stringify({ events: appEvents }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'events.json';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+function parseBackupList(data, key) {
+    const list = Array.isArray(data) ? data : data?.[key];
+    if (!Array.isArray(list)) throw new Error(`В бэкапе нет списка "${key}"`);
+    return list;
 }
 
-function importEventsJson(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
+async function backupEventsToStorage() {
+    try {
+        await window.BuhloSupabase.uploadBackup('events', { events: appEvents });
+        setEventsStatus(`Бэкап событий сохранён в Storage (${appEvents.length}).`);
+    } catch (error) {
+        setEventsStatus(`Не удалось сохранить бэкап: ${error.message}`, true);
+    }
+}
 
-    const reader = new FileReader();
-    reader.onload = async event => {
-        try {
-            const imported = parseEvents(event.target.result);
-            if (!confirm('Заменить список событий в общей базе данными из файла? Удалённые из файла события и их регистрации будут удалены.')) return;
-            await window.BuhloSupabase.replaceEvents(imported);
-            appEvents = imported;
-            await loadEvents();
-            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-            renderEvents();
-            setEventsStatus('JSON импортирован в Supabase.');
-        } catch (error) {
-            setEventsStatus(`Ошибка импорта: ${error.message}`, true);
-        } finally {
-            input.value = '';
+async function restoreEventsFromStorage() {
+    try {
+        const events = parseBackupList(await window.BuhloSupabase.downloadBackup('events'), 'events');
+        if (!confirm(`Восстановить из бэкапа события: ${events.length}? Существующие события с теми же id будут перезаписаны, остальные не удаляются.`)) return;
+        for (const item of events) {
+            await window.BuhloSupabase.saveEvent(item);
         }
-    };
-    reader.readAsText(file);
+        await loadEvents();
+        setEventsStatus(`События восстановлены из бэкапа (${events.length}).`);
+    } catch (error) {
+        setEventsStatus(`Не удалось восстановить из бэкапа: ${error.message}`, true);
+    }
 }
 
+async function backupBirthdaysToStorage() {
+    try {
+        await window.BuhloSupabase.uploadBackup('birthdays', { birthdays: appBirthdays });
+        setBirthdayStatus(`Бэкап дней рождения сохранён в Storage (${appBirthdays.length}).`);
+    } catch (error) {
+        setBirthdayStatus(`Не удалось сохранить бэкап: ${error.message}`, true);
+    }
+}
+
+async function restoreBirthdaysFromStorage() {
+    try {
+        const birthdays = parseBackupList(await window.BuhloSupabase.downloadBackup('birthdays'), 'birthdays');
+        if (!confirm(`Заменить дни рождения в базе данными из бэкапа (${birthdays.length})?`)) return;
+        await window.BuhloSupabase.replaceBirthdays(birthdays);
+        appBirthdays = birthdays;
+        renderAdminBirthdays();
+        setBirthdayStatus(`Дни рождения восстановлены из бэкапа (${birthdays.length}).`);
+    } catch (error) {
+        setBirthdayStatus(`Не удалось восстановить из бэкапа: ${error.message}`, true);
+    }
+}
+
+async function backupHolidaysToStorage() {
+    try {
+        await window.BuhloSupabase.uploadBackup('holidays', { holidays: appHolidays });
+        setHolidayStatus(`Бэкап праздников сохранён в Storage (${appHolidays.length}).`);
+    } catch (error) {
+        setHolidayStatus(`Не удалось сохранить бэкап: ${error.message}`, true);
+    }
+}
+
+async function restoreHolidaysFromStorage() {
+    try {
+        const holidays = parseBackupList(await window.BuhloSupabase.downloadBackup('holidays'), 'holidays');
+        if (!confirm(`Заменить праздники в базе данными из бэкапа (${holidays.length})?`)) return;
+        await window.BuhloSupabase.replaceHolidays(holidays);
+        appHolidays = holidays;
+        renderAdminHolidays();
+        setHolidayStatus(`Праздники восстановлены из бэкапа (${holidays.length}).`);
+    } catch (error) {
+        setHolidayStatus(`Не удалось восстановить из бэкапа: ${error.message}`, true);
+    }
+}
 async function loadEventsFromServer() {
     await loadEvents();
 }

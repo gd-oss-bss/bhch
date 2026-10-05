@@ -141,7 +141,11 @@ function initPage() {
     loadEvents();
     loadBirthdays();
     loadHolidays();
+    loadGallery();
     scheduleEventRefresh();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && isAuthenticated) loadEvents();
+    });
 }
 
 function getLocalDateString(date) {
@@ -310,80 +314,92 @@ function getSavedEvents() {
     }
 }
 
+async function syncLocalRegistrations() {
+    const registrations = getRegistrationMap(REGISTRATIONS_KEY);
+    const keys = getRegistrationMap('buhlo_registration_keys');
+    let changed = false;
+    for (const eventId of Object.keys(registrations)) {
+        const key = registrations[eventId]?.key;
+        if (typeof key !== 'string') continue;
+        try {
+            if (await window.BuhloSupabase.hasRegistration(Number(eventId), key) === false) {
+                delete registrations[eventId];
+                delete keys[eventId];
+                changed = true;
+            }
+        } catch (error) {
+            console.warn('Не удалось проверить регистрацию в базе:', error.message);
+            return;
+        }
+    }
+    if (changed) {
+        localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations));
+        localStorage.setItem('buhlo_registration_keys', JSON.stringify(keys));
+    }
+}
+
 async function loadEvents() {
     if (window.BuhloSupabase?.configured) {
         try {
             const remoteEvents = await window.BuhloSupabase.getEvents();
-            if (remoteEvents.length) {
-                appEvents = remoteEvents;
-                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-                renderEvents();
-                return;
-            }
-            console.info('Supabase events table is empty; using published JSON.');
+            appEvents = remoteEvents;
+            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+            await syncLocalRegistrations();
+            renderEvents();
+            return;
         } catch (error) {
-            console.warn('Supabase events unavailable; using published data:', error.message);
+            console.warn('Supabase events unavailable; using browser cache:', error.message);
         }
     }
 
     appEvents = getSavedEvents();
-
-    try {
-        const response = await fetch('data/events.json', { cache: 'no-store' });
-        if (response.ok) {
-            const json = await response.json();
-            if (Array.isArray(json)) {
-                appEvents = json;
-                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-            } else if (json && Array.isArray(json.events)) {
-                appEvents = json.events;
-                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-            }
-        }
-    } catch (error) {
-        console.log('Fallback to localStorage events');
-    }
-
     renderEvents();
 }
 
+async function loadGallery() {
+    const container = document.getElementById('gallery-container');
+    if (!container || !window.BuhloSupabase?.configured) return;
+    try {
+        const photos = await window.BuhloSupabase.getGalleryPhotos();
+        container.innerHTML = '';
+        if (!photos.length) {
+            container.innerHTML = '<p class="muted-message">Фотографий пока нет.</p>';
+            return;
+        }
+        photos.forEach(photo => {
+            const image = document.createElement('img');
+            image.className = 'gallery-photo';
+            image.alt = 'Фото встреч';
+            image.loading = 'lazy';
+            image.src = photo.url;
+            container.appendChild(image);
+        });
+    } catch (error) {
+        console.warn('Галерея недоступна:', error.message);
+        container.innerHTML = '<p class="muted-message">Не удалось загрузить галерею.</p>';
+    }
+}
 async function loadBirthdays() {
     if (window.BuhloSupabase?.configured) {
         try {
             const remoteBirthdays = await window.BuhloSupabase.getBirthdays();
-            if (remoteBirthdays.length) {
-                appBirthdays = remoteBirthdays;
-                localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
-                renderBirthdays();
-                renderUpcomingHighlights();
-                celebrateBirthdayIfToday();
-                return;
-            }
-            console.info('Supabase birthdays table is empty; using published JSON.');
+            appBirthdays = remoteBirthdays;
+            localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
+            renderBirthdays();
+            renderUpcomingHighlights();
+            celebrateBirthdayIfToday();
+            return;
         } catch (error) {
-            console.warn('Supabase birthdays unavailable; using published data:', error.message);
+            console.warn('Supabase birthdays unavailable; using browser cache:', error.message);
         }
     }
 
     try {
-        const response = await fetch('data/birthdays.json', { cache: 'no-store' });
-        const data = response.ok ? await response.json() : null;
-        if (data && Array.isArray(data.birthdays)) {
-            appBirthdays = data.birthdays;
-            localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
-        } else {
-            const saved = localStorage.getItem(BIRTHDAYS_KEY);
-            appBirthdays = saved ? JSON.parse(saved) : [];
-        }
-    } catch (error) {
         const saved = localStorage.getItem(BIRTHDAYS_KEY);
-        try {
-            appBirthdays = saved ? JSON.parse(saved) : [];
-        } catch (cacheError) {
-            appBirthdays = [];
-            console.warn('Browser birthday cache is invalid:', cacheError.message);
-        }
-        console.warn('Published birthdays unavailable; using browser cache:', error.message);
+        appBirthdays = saved ? JSON.parse(saved) : [];
+    } catch (cacheError) {
+        appBirthdays = [];
+        console.warn('Browser birthday cache is invalid:', cacheError.message);
     }
     renderBirthdays();
     renderUpcomingHighlights();
@@ -437,32 +453,16 @@ function loadHolidays() {
         if (window.BuhloSupabase?.configured) {
             try {
                 const remoteHolidays = await window.BuhloSupabase.getHolidays();
-                if (remoteHolidays.length) {
-                    appHolidays = remoteHolidays;
-                    localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
-                    renderUpcomingHighlights();
-                    return;
-                }
-                console.info('Supabase holidays table is empty; using published JSON.');
+                appHolidays = remoteHolidays;
+                localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
+                renderUpcomingHighlights();
+                return;
             } catch (error) {
-                console.warn('Supabase holidays unavailable; using published data:', error.message);
+                console.warn('Supabase holidays unavailable; using browser cache:', error.message);
             }
         }
 
-        try {
-            const response = await fetch('data/holidays.json', { cache: 'no-store' });
-            const data = response.ok ? await response.json() : null;
-            if (data && Array.isArray(data.holidays)) {
-                appHolidays = data.holidays;
-                localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
-                renderUpcomingHighlights();
-            } else {
-                useCache();
-            }
-        } catch (error) {
-            console.warn('Published holidays unavailable; using browser cache:', error.message);
-            useCache();
-        }
+        useCache();
     };
     load();
 }
@@ -688,13 +688,7 @@ async function submitRegistration(eventId) {
         registrations[eventId] = { key: registrationKey };
         localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations));
 
-        const event = appEvents.find(item => item.id === eventId);
-        if (event) {
-            event.participants = Array.isArray(event.participants) ? event.participants : [];
-            if (!event.participants.some(person => person.name === name)) event.participants.push({ name, notes: notes || '' });
-            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-        }
-        renderEvents();
+        await loadEvents();
         alert('Вы записаны на событие!');
     } catch (error) {
         alert(savedToSupabase
