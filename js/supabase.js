@@ -1,0 +1,238 @@
+(function() {
+    const config = window.BUHLO_SUPABASE_CONFIG || {};
+    const url = typeof config.url === 'string' ? config.url.replace(/\/$/, '') : '';
+    const anonKey = typeof config.anonKey === 'string' ? config.anonKey.trim() : '';
+    const configured = Boolean(url && anonKey && anonKey !== 'PASTE_SUPABASE_PUBLIC_ANON_KEY_HERE');
+    let accessToken = '';
+    let refreshToken = '';
+    let isAdmin = false;
+
+    function requireConfiguration() {
+        if (!configured) {
+            throw new Error('Настройте URL и публичный anon key в js/supabase-config.js');
+        }
+    }
+
+    async function authRequest(path, body, token) {
+        requireConfiguration();
+        const headers = { apikey: anonKey, 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const response = await fetch(`${url}/auth/v1/${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Supabase Auth HTTP ${response.status}: ${detail}`);
+        }
+        return response.json();
+    }
+
+    async function refreshSession() {
+        if (!refreshToken) {
+            accessToken = '';
+            isAdmin = false;
+            throw new Error('Сессия истекла. Войдите снова.');
+        }
+        const session = await authRequest('token?grant_type=refresh_token', {
+            refresh_token: refreshToken
+        });
+        accessToken = session.access_token;
+        refreshToken = session.refresh_token;
+    }
+
+    async function request(path, options = {}, authenticated = false, canRefresh = true) {
+        requireConfiguration();
+        if (authenticated && !accessToken) throw new Error('Сначала войдите в админку.');
+
+        const headers = {
+            apikey: anonKey,
+            Authorization: `Bearer ${authenticated ? accessToken : anonKey}`,
+            ...options.headers
+        };
+        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+        const response = await fetch(`${url}/rest/v1/${path}`, {
+            ...options,
+            headers,
+            cache: 'no-store'
+        });
+
+        if (response.status === 401 && authenticated && canRefresh && refreshToken) {
+            await refreshSession();
+            return request(path, options, authenticated, false);
+        }
+        if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Supabase HTTP ${response.status}: ${detail}`);
+        }
+        if (response.status === 204) return null;
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
+    }
+
+    function eventToRow(event) {
+        const row = {
+            title: event.title,
+            date: event.date,
+            time: event.time || null,
+            location: event.location || '',
+            description: event.description || null,
+            recurrence: event.recurrence || null,
+            maxParticipants: event.maxParticipants
+        };
+        if (event.id !== undefined && event.id !== null) row.event_id = Number(event.id);
+        return row;
+    }
+
+    function eventFromRow(row, participants = []) {
+        return {
+            id: row.event_id,
+            title: row.title,
+            date: row.date,
+            time: row.time || '',
+            location: row.location || '',
+            description: row.description || '',
+            recurrence: row.recurrence || undefined,
+            participants,
+            maxParticipants: row.maxParticipants
+        };
+    }
+
+    async function getEvents() {
+        const rows = await request('events?select=event_id,title,date,time,location,description,recurrence,maxParticipants&order=date.asc');
+        const participants = await request('rpc/get_public_event_participants', {
+            method: 'POST',
+            body: '{}'
+        });
+        const byEvent = new Map();
+        (participants || []).forEach(person => {
+            if (!byEvent.has(person.event_id)) byEvent.set(person.event_id, []);
+            byEvent.get(person.event_id).push({ name: person.name });
+        });
+        return (rows || []).map(row => eventFromRow(row, byEvent.get(row.event_id) || []));
+    }
+
+    async function getBirthdays() {
+        const rows = await request('birthdays?select=id,date,name&order=date.asc');
+        return (rows || []).map(row => ({ date: row.date, name: row.name }));
+    }
+
+    async function getHolidays() {
+        const rows = await request('holidays?select=id,date,name,event_type&order=date.asc');
+        return (rows || []).map(row => ({
+            date: row.date,
+            name: row.name,
+            event_type: row.event_type
+        }));
+    }
+
+    async function replaceEvents(events) {
+        if (events.some(event => !Number.isSafeInteger(event.id))) {
+            throw new Error('У каждого события должен быть числовой id для безопасного импорта.');
+        }
+        await request('rpc/replace_events', {
+            method: 'POST',
+            body: JSON.stringify({
+                p_events: events.map(event => ({
+                    ...eventToRow(event),
+                    participants: Array.isArray(event.participants) ? event.participants : []
+                }))
+            })
+        }, true);
+    }
+
+    async function saveEvent(event) {
+        const rows = await request('events?on_conflict=event_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+            body: JSON.stringify(eventToRow(event))
+        }, true);
+        return eventFromRow(rows[0], event.participants || []);
+    }
+
+    async function deleteEvent(id) {
+        await request(`events?event_id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        }, true);
+    }
+
+    async function replaceBirthdays(birthdays) {
+        await request('rpc/replace_birthdays', {
+            method: 'POST',
+            body: JSON.stringify({ p_birthdays: birthdays })
+        }, true);
+    }
+
+    async function replaceHolidays(holidays) {
+        await request('rpc/replace_holidays', {
+            method: 'POST',
+            body: JSON.stringify({ p_holidays: holidays })
+        }, true);
+    }
+
+    async function getAdminRegistrations() {
+        return request('event_registrations?select=id,event_id,name,contact,notes,registered_at&order=registered_at.asc', {}, true);
+    }
+
+    async function submitRegistration(eventId, registrationKey, name, contact, notes) {
+        return request('rpc/submit_event_registration', {
+            method: 'POST',
+            body: JSON.stringify({
+                p_event_id: eventId,
+                p_registration_key: registrationKey,
+                p_name: name,
+                p_contact: contact || 'не указан',
+                p_notes: notes || ''
+            })
+        });
+    }
+
+    window.BuhloSupabase = {
+        get configured() { return configured; },
+        get isAdmin() { return isAdmin; },
+        signIn: async function(email, password) {
+            const session = await authRequest('token?grant_type=password', {
+                email,
+                password
+            });
+            if (session.user?.app_metadata?.role !== 'admin') {
+                throw new Error('У этой учётной записи нет прав администратора.');
+            }
+            accessToken = session.access_token;
+            refreshToken = session.refresh_token;
+            isAdmin = true;
+        },
+        signOut: function() {
+            accessToken = '';
+            refreshToken = '';
+            isAdmin = false;
+        },
+        changePassword: async function(password) {
+            if (!accessToken || !isAdmin) throw new Error('Сначала войдите в админку.');
+            const response = await fetch(`${url}/auth/v1/user`, {
+                method: 'PUT',
+                headers: {
+                    apikey: anonKey,
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+            if (!response.ok) {
+                const detail = await response.text();
+                throw new Error(`Supabase Auth HTTP ${response.status}: ${detail}`);
+            }
+        },
+        getEvents,
+        getBirthdays,
+        getHolidays,
+        replaceEvents,
+        saveEvent,
+        deleteEvent,
+        replaceBirthdays,
+        replaceHolidays,
+        getAdminRegistrations,
+        submitRegistration
+    };
+})();

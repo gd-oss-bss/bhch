@@ -5,8 +5,6 @@ const HOLIDAYS_KEY = 'buhlo_holidays_data';
 const BIRTHDAYS_KEY = 'buhlo_birthdays_data';
 const REGISTRATIONS_KEY = 'buhlo_registrations';
 
-const ENCRYPTED_ADMIN_PASSWORD = 'Oy_hy}hyq|tj\u0003';
-
 const DEFAULT_EVENTS = [
     {
         id: 2,
@@ -28,14 +26,6 @@ let isAuthenticated = false;
 let appBirthdays = [];
 let appHolidays = [];
 let eventRefreshTimeout;
-
-function simpleDecrypt(encrypted) {
-    let decrypted = '';
-    for (let i = 0; i < encrypted.length; i++) {
-        decrypted += String.fromCharCode(encrypted.charCodeAt(i) ^ 7);
-    }
-    return decrypted;
-}
 
 function checkAuth() {
     const val = document.getElementById('auth-input').value.trim().toLowerCase();
@@ -161,6 +151,19 @@ function getLocalDateString(date) {
     return `${year}-${month}-${day}`;
 }
 
+function getRegistrationMap(key) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        throw new Error('Ожидался объект регистраций');
+    } catch (error) {
+        console.warn(`Повреждён локальный ключ ${key}:`, error.message);
+        return {};
+    }
+}
+
 function isValidEventDate(dateString) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
     const date = new Date(`${dateString}T00:00:00`);
@@ -194,7 +197,8 @@ function getVisibleEvents(today = new Date()) {
             if (!date || todayString < getYearlyEventDisplayStart(date)) return [];
             return [{ ...event, date }];
         }
-        if (isValidEventDate(event.date) && event.date < todayString) return [];
+        if (isValidEventDate(event.date) &&
+            (event.date < todayString || todayString < getYearlyEventDisplayStart(event.date))) return [];
         return [event];
     });
 }
@@ -307,13 +311,31 @@ function getSavedEvents() {
 }
 
 async function loadEvents() {
+    if (window.BuhloSupabase?.configured) {
+        try {
+            const remoteEvents = await window.BuhloSupabase.getEvents();
+            if (remoteEvents.length) {
+                appEvents = remoteEvents;
+                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+                renderEvents();
+                return;
+            }
+            console.info('Supabase events table is empty; using published JSON.');
+        } catch (error) {
+            console.warn('Supabase events unavailable; using published data:', error.message);
+        }
+    }
+
     appEvents = getSavedEvents();
 
     try {
-        const response = await fetch('data/events.json');
+        const response = await fetch('data/events.json', { cache: 'no-store' });
         if (response.ok) {
             const json = await response.json();
-            if (json && Array.isArray(json.events)) {
+            if (Array.isArray(json)) {
+                appEvents = json;
+                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+            } else if (json && Array.isArray(json.events)) {
                 appEvents = json.events;
                 localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
             }
@@ -325,28 +347,47 @@ async function loadEvents() {
     renderEvents();
 }
 
-function loadBirthdays() {
-    fetch('data/birthdays.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-            if (data && Array.isArray(data.birthdays)) {
-                appBirthdays = data.birthdays;
+async function loadBirthdays() {
+    if (window.BuhloSupabase?.configured) {
+        try {
+            const remoteBirthdays = await window.BuhloSupabase.getBirthdays();
+            if (remoteBirthdays.length) {
+                appBirthdays = remoteBirthdays;
                 localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
-            } else {
-                const saved = localStorage.getItem(BIRTHDAYS_KEY);
-                appBirthdays = saved ? JSON.parse(saved) : [];
+                renderBirthdays();
+                renderUpcomingHighlights();
+                celebrateBirthdayIfToday();
+                return;
             }
-            renderBirthdays();
-            renderUpcomingHighlights();
-            celebrateBirthdayIfToday();
-        })
-        .catch(() => {
+            console.info('Supabase birthdays table is empty; using published JSON.');
+        } catch (error) {
+            console.warn('Supabase birthdays unavailable; using published data:', error.message);
+        }
+    }
+
+    try {
+        const response = await fetch('data/birthdays.json', { cache: 'no-store' });
+        const data = response.ok ? await response.json() : null;
+        if (data && Array.isArray(data.birthdays)) {
+            appBirthdays = data.birthdays;
+            localStorage.setItem(BIRTHDAYS_KEY, JSON.stringify(appBirthdays));
+        } else {
             const saved = localStorage.getItem(BIRTHDAYS_KEY);
             appBirthdays = saved ? JSON.parse(saved) : [];
-            renderBirthdays();
-            renderUpcomingHighlights();
-            celebrateBirthdayIfToday();
-        });
+        }
+    } catch (error) {
+        const saved = localStorage.getItem(BIRTHDAYS_KEY);
+        try {
+            appBirthdays = saved ? JSON.parse(saved) : [];
+        } catch (cacheError) {
+            appBirthdays = [];
+            console.warn('Browser birthday cache is invalid:', cacheError.message);
+        }
+        console.warn('Published birthdays unavailable; using browser cache:', error.message);
+    }
+    renderBirthdays();
+    renderUpcomingHighlights();
+    celebrateBirthdayIfToday();
 }
 
 function celebrateBirthdayIfToday() {
@@ -392,9 +433,25 @@ function loadHolidays() {
         }
         renderUpcomingHighlights();
     };
-    fetch('data/holidays.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
+    const load = async () => {
+        if (window.BuhloSupabase?.configured) {
+            try {
+                const remoteHolidays = await window.BuhloSupabase.getHolidays();
+                if (remoteHolidays.length) {
+                    appHolidays = remoteHolidays;
+                    localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
+                    renderUpcomingHighlights();
+                    return;
+                }
+                console.info('Supabase holidays table is empty; using published JSON.');
+            } catch (error) {
+                console.warn('Supabase holidays unavailable; using published data:', error.message);
+            }
+        }
+
+        try {
+            const response = await fetch('data/holidays.json', { cache: 'no-store' });
+            const data = response.ok ? await response.json() : null;
             if (data && Array.isArray(data.holidays)) {
                 appHolidays = data.holidays;
                 localStorage.setItem(HOLIDAYS_KEY, JSON.stringify(appHolidays));
@@ -402,8 +459,12 @@ function loadHolidays() {
             } else {
                 useCache();
             }
-        })
-        .catch(useCache);
+        } catch (error) {
+            console.warn('Published holidays unavailable; using browser cache:', error.message);
+            useCache();
+        }
+    };
+    load();
 }
 
 function getNextAnnualDate(monthDay, from = new Date()) {
@@ -464,7 +525,7 @@ function renderUpcomingHighlights() {
 
     const items = [];
     if (upcomingEvents[0]) {
-        items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${upcomingEvents[0].title} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
+        items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${escapeHtml(upcomingEvents[0].title)} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
     }
   //  if (birthday) {
     //    items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthday.nextDate.toISOString().slice(0, 10))} — ${birthday.name}</strong></div>`);
@@ -481,7 +542,7 @@ function renderUpcomingHighlights() {
     if (holiday) {
         const holidayDateString = holiday.nextDate.toLocaleDateString('sv');
         const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
-        items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holidayDateString)}</strong></div>`);
+        items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${escapeHtml(holiday.name)} — ${formatDate(holidayDateString)}</strong></div>`);
     }
 
     container.innerHTML = items.length ? items.join('') : '<p class="muted-message">Ближайших событий пока нет.</p>';
@@ -534,22 +595,23 @@ function renderEvents() {
         return;
     }
 
-    eventsList.innerHTML = visibleEvents.map(event => {
+    eventsList.innerHTML = visibleEvents.map((event, index) => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registered = hasUserRegistered(event.id);
         return `
+            ${index > 0 ? '<div class="section-divider"></div>' : ''}
             <article class="event-card" data-id="${event.id}">
                 <div class="event-header">
                     <div>
                         <span class="event-date">${formatDate(event.date)}</span>
-                        <h3>${event.title}</h3>
+                        <h3>${escapeHtml(event.title)}</h3>
                     </div>
                     <span class="event-badge">${participants.length}/${event.maxParticipants || 50}</span>
                 </div>
-                <p>${event.description || 'Описание события скоро появится.'}</p>
+                <p>${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
                 <div class="event-meta">
-                    <span>🕒 ${event.time || 'Время не указано'}</span>
-                    <span>📍 ${event.location || 'Место не указано'}</span>
+                    <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span>
+                    <span>📍 ${escapeHtml(event.location || 'Место не указано')}</span>
                 </div>
                 <div class="event-actions">
                     <button type="button" class="secondary-btn" onclick="showRegistrationForm(${event.id})">Записаться</button>
@@ -561,9 +623,12 @@ function renderEvents() {
                     <textarea id="reg-notes-${event.id}" placeholder="Комментарий"></textarea>
                     <button type="button" onclick="submitRegistration(${event.id})">Подтвердить запись</button>
                 </div>
-                <div class="participants-list">
-                    ${participants.map(person => `<span class="participant-pill">${person.name}</span>`).join('') || '<span class="participant-pill">Пока никого</span>'}
-                </div>
+                <details class="participants-more">
+                    <summary>Записались (${participants.length})</summary>
+                    <div class="participants-list">
+                        ${participants.map(person => `<span class="participant-pill">${escapeHtml(person.name)}</span>`).join('') || '<span class="participant-pill">Пока никого</span>'}
+                    </div>
+                </details>
             </article>
         `;
     }).join('');
@@ -576,11 +641,25 @@ function showRegistrationForm(eventId) {
 }
 
 function hasUserRegistered(eventId) {
-    const registrations = JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || '{}');
-    return !!registrations[eventId];
+    const registrations = getRegistrationMap(REGISTRATIONS_KEY);
+    return typeof registrations[eventId]?.key === 'string';
 }
 
-function submitRegistration(eventId) {
+function getRegistrationKey(eventId) {
+    const keys = getRegistrationMap('buhlo_registration_keys');
+    if (typeof keys[eventId] === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(keys[eventId])) {
+        return keys[eventId];
+    }
+    if (!window.crypto?.randomUUID) {
+        throw new Error('В этом браузере невозможно безопасно создать ключ регистрации.');
+    }
+    keys[eventId] = window.crypto.randomUUID();
+    localStorage.setItem('buhlo_registration_keys', JSON.stringify(keys));
+    return keys[eventId];
+}
+
+async function submitRegistration(eventId) {
     const name = document.getElementById(`reg-name-${eventId}`)?.value.trim();
     const contact = document.getElementById(`reg-contact-${eventId}`)?.value.trim();
     const notes = document.getElementById(`reg-notes-${eventId}`)?.value.trim();
@@ -590,24 +669,38 @@ function submitRegistration(eventId) {
         return;
     }
 
-    const event = appEvents.find(item => item.id === eventId);
-    if (!event) return;
-
-    event.participants = Array.isArray(event.participants) ? event.participants : [];
-    const maxParticipants = Number(event.maxParticipants) || 50;
-
-    if (event.participants.length >= maxParticipants) {
-        alert('Мест уже нет, но можно оставить заявку в списке ожидания');
+    if (hasUserRegistered(eventId)) {
+        alert('Вы уже записаны на это событие.');
         return;
     }
 
-    const entry = { name, contact: contact || 'не указан', notes: notes || '', registeredAt: new Date().toISOString() };
-    event.participants.push(entry);
+    const button = document.querySelector(`#form-${eventId} button`);
+    if (button) button.disabled = true;
+    let savedToSupabase = false;
+    try {
+        if (!window.BuhloSupabase?.configured) {
+            throw new Error('Регистрация временно недоступна: Supabase не настроен.');
+        }
+        const registrationKey = getRegistrationKey(eventId);
+        await window.BuhloSupabase.submitRegistration(eventId, registrationKey, name, contact, notes);
+        savedToSupabase = true;
+        const registrations = getRegistrationMap(REGISTRATIONS_KEY);
+        registrations[eventId] = { key: registrationKey };
+        localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations));
 
-    const registrations = JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || '{}');
-    registrations[eventId] = entry;
-    localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations));
-    localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-
-    renderEvents();
+        const event = appEvents.find(item => item.id === eventId);
+        if (event) {
+            event.participants = Array.isArray(event.participants) ? event.participants : [];
+            if (!event.participants.some(person => person.name === name)) event.participants.push({ name });
+            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+        }
+        renderEvents();
+        alert('Вы записаны на событие!');
+    } catch (error) {
+        alert(savedToSupabase
+            ? `Запись создана в Supabase, но не удалось обновить данные этого браузера: ${error.message}`
+            : `Не удалось зарегистрироваться: ${error.message}`);
+    } finally {
+        if (button) button.disabled = false;
+    }
 }

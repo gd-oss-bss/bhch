@@ -19,7 +19,8 @@
         <div id="auth-block">
             <div class="auth-box">
                 <h2>Админка</h2>
-                <p>Введите пароль администратора</p>
+                <p>Войдите через Supabase Auth</p>
+                <input type="email" id="admin-email" placeholder="Email администратора" autocomplete="username" />
                 <input type="password" id="admin-password" placeholder="Пароль..." />
                 <button class="btn" style="width:100%;" onclick="checkAdminLogin()">Войти</button>
                 <div id="admin-error" class="error-msg">Неверный пароль.</div>
@@ -31,7 +32,7 @@
 
         <div id="dashboard" class="dashboard hidden">
             <section class="panel">
-                <h3>Добавить событие</h3>
+                <h3 id="event-form-title">Добавить событие</h3>
                 <input type="text" id="event-title" placeholder="Название события" />
                 <input type="date" id="event-date" />
                 <label class="event-recurrence">
@@ -44,21 +45,22 @@
                 <input type="number" id="event-limit" value="30" min="1" placeholder="Лимит участников" />
 
                 <div class="admin-actions">
-                    <button type="button" onclick="saveEvent()">Сохранить событие</button>
+                    <button type="button" id="save-event-button" onclick="saveEvent()">Сохранить событие</button>
                     <button type="button" class="secondary" onclick="resetForm()">Очистить</button>
                 </div>
 
-                <div class="admin-actions" style="margin-top: 20px;">
+                <div class="admin-actions">
                     <button type="button" class="secondary" onclick="downloadEventsJson()">📥 Скачать events.json</button>
-                    <input id="import-events-input" type="file" accept="application/json" class="hidden" onchange="importEventsJson(this)" />
+                    <input id="import-events-input" type="file" accept="application/json,.json" class="hidden" onchange="importEventsJson(this)" />
                     <button type="button" class="secondary" onclick="document.getElementById('import-events-input').click()">📤 Импорт JSON</button>
                 </div>
 
-                <div class="admin-actions" style="margin-top: 20px; gap: 10px;">
-                    <button type="button" class="success" onclick="saveEventsToGitHub()">💾 Сохранить в GitHub</button>
-                    <button type="button" class="info" onclick="loadEventsFromGitHub()">🔄 Загрузить из GitHub</button>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
+                <div class="admin-actions">
+                    <button type="button" class="success" onclick="syncEventsWithServer('save')">💾 Сохранить в Supabase</button>
+                    <button type="button" class="info" onclick="syncEventsWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
-                <div id="github-status" style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: #10b981;"></div>
+                <div id="events-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
 
             <section class="panel">
@@ -81,12 +83,12 @@
                     <button type="button" class="secondary" onclick="document.getElementById('import-birthdays-input').click()">📤 Импорт JSON</button>
                 </div>
 
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачанный файл поместите в data/birthdays.json и опубликуйте сайт. Синхронизация работает только при настроенном backend proxy.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
                 <div class="admin-actions">
-                    <button type="button" class="success" onclick="syncBirthdaysWithServer('save')">💾 Сохранить на сервер</button>
-                    <button type="button" class="info" onclick="syncBirthdaysWithServer('load')">🔄 Загрузить с сервера</button>
+                    <button type="button" class="success" onclick="syncBirthdaysWithServer('save')">💾 Сохранить в Supabase</button>
+                    <button type="button" class="info" onclick="syncBirthdaysWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
-                <button type="button" class="secondary" style="width:100%; margin-top: 12px;" onclick="discardBirthdayDraft()">Загрузить опубликованный список</button>
+                <button type="button" id="legacy-birthday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateBirthdayDraft()">Импортировать старый локальный черновик</button>
                 <div id="birthday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
 
@@ -112,8 +114,12 @@
                     <input id="import-holidays-input" type="file" accept="application/json,.json" class="hidden" onchange="importHolidaysJson(this)" />
                     <button type="button" class="secondary" onclick="document.getElementById('import-holidays-input').click()">📤 Импорт JSON</button>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Изменения сохраняются в локальном черновике. Скачайте файл и поместите его в data/holidays.json, чтобы опубликовать.</p>
-                <button type="button" class="secondary" style="width:100%; margin-top: 12px;" onclick="discardHolidayDraft()">Загрузить опубликованный список</button>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Скачайте JSON для резервной копии. Изменения администратора сохраняются в общей базе.</p>
+                <div class="admin-actions">
+                    <button type="button" class="success" onclick="syncHolidaysWithServer('save')">💾 Сохранить в Supabase</button>
+                    <button type="button" class="info" onclick="syncHolidaysWithServer('load')">🔄 Загрузить из Supabase</button>
+                </div>
+                <button type="button" id="legacy-holiday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateHolidayDraft()">Импортировать старый локальный черновик</button>
                 <div id="holiday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
 
@@ -125,19 +131,19 @@
             <section class="panel" style="grid-column:1 / -1;">
                 <h3>Сменить пароль</h3>
                 <div class="password-form">
-                    <input type="password" id="current-password" placeholder="Текущий пароль" />
                     <input type="password" id="new-password" placeholder="Новый пароль" />
                     <input type="password" id="confirm-password" placeholder="Подтвердите новый пароль" />
                     <div class="admin-actions">
                         <button type="button" onclick="changeAdminPassword()">Сохранить новый пароль</button>
                     </div>
                     <div id="password-message" class="status-message hidden"></div>
-                    <div id="password-github-status" style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: #10b981;"></div>
                 </div>
             </section>
         </div>
     </div>
 
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/supabase.js"></script>
     <script src="../js/admin.js"></script>
 </body>
 </html>

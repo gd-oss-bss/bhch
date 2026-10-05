@@ -60,3 +60,17 @@
         text-align: left;
     }
 }
+
+.participants-more {
+    margin-top: 12px;
+}
+
+.participants-more summary {
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.participants-more .participants-list {
+    margin-top: 10px;
+}

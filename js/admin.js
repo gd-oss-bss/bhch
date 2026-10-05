@@ -2,32 +2,14 @@ const EVENTS_KEY = 'buhlo_events_data';
 const BIRTHDAYS_DRAFT_KEY = 'buhlo_birthdays_admin_draft';
 const HOLIDAYS_DRAFT_KEY = 'buhlo_holidays_admin_draft';
 
-// Encrypted admin password: Pvfxbycrbq1981
-const ENCRYPTED_ADMIN_PASSWORD = 'Wqa\u007fe~duev6>?6';
-
-// Optional server-side proxy. The GitHub token must be stored only on that server.
-// Example: window.BUHLO_API_URL = 'https://your-api.example.com';
-const API_URL = (window.BUHLO_API_URL || '').replace(/\/$/, '');
-
 let appEvents = [];
 let appBirthdays = [];
 let appHolidays = [];
+let appRegistrations = [];
 let editingEventId = null;
 let editingBirthdayIndex = null;
 let editingHolidayIndex = null;
-let isAdminAuthenticated = false; // in-memory auth flag (session only)
-
-function simpleDecrypt(encrypted) {
-    let decrypted = '';
-    for (let i = 0; i < encrypted.length; i++) {
-        decrypted += String.fromCharCode(encrypted.charCodeAt(i) ^ 7);
-    }
-    return decrypted;
-}
-
-function getCurrentPassword() {
-    return simpleDecrypt(ENCRYPTED_ADMIN_PASSWORD);
-}
+let isAdminAuthenticated = false;
 
 function goBackToHub() {
     window.location.href = '../index.html';
@@ -45,25 +27,30 @@ function showAuth() {
     document.getElementById('dashboard').classList.add('hidden');
 }
 
-function checkAdminLogin() {
-    const value = document.getElementById('admin-password').value.trim();
-    if (value === getCurrentPassword()) {
-        isAdminAuthenticated = true; // store only in memory, never in localStorage or cookies
+async function checkAdminLogin() {
+    const email = document.getElementById('admin-email').value.trim();
+    const password = document.getElementById('admin-password').value;
+    const error = document.getElementById('admin-error');
+
+    try {
+        await window.BuhloSupabase.signIn(email, password);
+        isAdminAuthenticated = true;
         document.getElementById('admin-password').value = '';
-        document.getElementById('admin-error').style.display = 'none';
+        error.style.display = 'none';
         showDashboard();
-        loadEvents();
-        loadAdminBirthdays();
-        loadAdminHolidays();
-    } else {
-        document.getElementById('admin-error').style.display = 'block';
+        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays()]);
+    } catch (loginError) {
+        error.textContent = loginError.message;
+        error.style.display = 'block';
         document.getElementById('admin-password').value = '';
+        window.BuhloSupabase.signOut();
         isAdminAuthenticated = false;
     }
 }
 
 function logoutAdmin() {
-    isAdminAuthenticated = false; // clear in-memory auth
+    window.BuhloSupabase.signOut();
+    isAdminAuthenticated = false;
     document.getElementById('admin-password').value = '';
     document.getElementById('admin-error').style.display = 'none';
     showAuth();
@@ -116,22 +103,42 @@ function getSavedEvents() {
 }
 
 async function loadEvents() {
-    appEvents = getSavedEvents();
-
     try {
-        const response = await fetch('../data/events.json', { cache: 'no-store' });
-        if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data.events)) {
-                appEvents = data.events;
-                localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-            }
+        appEvents = await window.BuhloSupabase.getEvents();
+        if (appEvents.length) {
+            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+        } else {
+            const response = await fetch('../data/events.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Опубликованные события: HTTP ${response.status}`);
+            appEvents = parseEvents(await response.json());
+            setEventsStatus('Supabase пока пуст; загружены события из data/events.json. Импортируйте JSON, чтобы заполнить базу.');
         }
     } catch (error) {
-        console.log('Using localStorage events:', error.message);
+        appEvents = getSavedEvents();
+        setEventsStatus(`Не удалось загрузить данные из Supabase: ${error.message}`, true);
+        appRegistrations = [];
+        renderEvents();
+        return;
+    }
+
+    try {
+        appRegistrations = await window.BuhloSupabase.getAdminRegistrations();
+        if (appRegistrations.length || appEvents.length) {
+            setEventsStatus('Данные загружены. Если список пришёл из JSON, импортируйте его для сохранения в Supabase.');
+        }
+    } catch (error) {
+        appRegistrations = [];
+        setEventsStatus(`События загружены, но список записей недоступен: ${error.message}`, true);
     }
 
     renderEvents();
+}
+
+function setEventsStatus(message, isError = false) {
+    const status = document.getElementById('events-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
 }
 
 function parseBirthdays(value) {
@@ -165,22 +172,30 @@ async function loadAdminBirthdays() {
     status.classList.add('hidden');
 
     try {
-        const draft = localStorage.getItem(BIRTHDAYS_DRAFT_KEY);
-        if (draft !== null) {
-            appBirthdays = parseBirthdays(draft);
-            renderAdminBirthdays();
-            setBirthdayStatus('Загружен локальный черновик. Скачайте JSON и опубликуйте его, чтобы изменения увидели все.');
-            return;
+        appBirthdays = await window.BuhloSupabase.getBirthdays();
+        if (!appBirthdays.length) {
+            const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Опубликованные дни рождения: HTTP ${response.status}`);
+            appBirthdays = parseBirthdays(await response.json());
+            setBirthdayStatus(`Supabase пока пуст; загружены ${appBirthdays.length} записей из data/birthdays.json. Нажмите «Сохранить в Supabase», чтобы импортировать их.`);
         }
-
-        const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        appBirthdays = parseBirthdays(await response.json());
         renderAdminBirthdays();
+        const hasDraft = localStorage.getItem(BIRTHDAYS_DRAFT_KEY) !== null;
+        document.getElementById('legacy-birthday-draft').classList.toggle('hidden', !hasDraft);
+        if (hasDraft) setBirthdayStatus('Найден старый локальный черновик; он не удалён. Импортируйте его отдельно, если он нужен.');
     } catch (error) {
-        appBirthdays = [];
+        try {
+            const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            appBirthdays = parseBirthdays(await response.json());
+        } catch (fallbackError) {
+            appBirthdays = [];
+            setBirthdayStatus(`Не удалось загрузить дни рождения: ${fallbackError.message}`, true);
+        }
         renderAdminBirthdays();
-        setBirthdayStatus(`Не удалось загрузить дни рождения: ${error.message}`, true);
+        if (!document.getElementById('birthday-status').classList.contains('error')) {
+            setBirthdayStatus(`Supabase недоступен; показан опубликованный список. ${error.message}`, true);
+        }
     }
 }
 
@@ -224,22 +239,30 @@ function isValidHolidayDate(date) {
 
 async function loadAdminHolidays() {
     try {
-        const draft = localStorage.getItem(HOLIDAYS_DRAFT_KEY);
-        if (draft !== null) {
-            appHolidays = parseHolidays(draft);
-            renderAdminHolidays();
-            setHolidayStatus('Загружен локальный черновик. Скачайте holidays.json и опубликуйте его, чтобы изменения увидели все.');
-            return;
+        appHolidays = await window.BuhloSupabase.getHolidays();
+        if (!appHolidays.length) {
+            const response = await fetch('../data/holidays.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Опубликованные праздники: HTTP ${response.status}`);
+            appHolidays = parseHolidays(await response.json());
+            setHolidayStatus(`Supabase пока пуст; загружены ${appHolidays.length} записей из data/holidays.json. Сохраните изменения, чтобы внести их в базу.`);
         }
-
-        const response = await fetch('../data/holidays.json', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        appHolidays = parseHolidays(await response.json());
         renderAdminHolidays();
+        const hasDraft = localStorage.getItem(HOLIDAYS_DRAFT_KEY) !== null;
+        document.getElementById('legacy-holiday-draft').classList.toggle('hidden', !hasDraft);
+        if (hasDraft) setHolidayStatus('Найден старый локальный черновик; он не удалён. Импортируйте его отдельно, если он нужен.');
     } catch (error) {
-        appHolidays = [];
+        try {
+            const response = await fetch('../data/holidays.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            appHolidays = parseHolidays(await response.json());
+        } catch (fallbackError) {
+            appHolidays = [];
+            setHolidayStatus(`Не удалось загрузить праздники: ${fallbackError.message}`, true);
+        }
         renderAdminHolidays();
-        setHolidayStatus(`Не удалось загрузить праздники: ${error.message}`, true);
+        if (!document.getElementById('holiday-status').classList.contains('error')) {
+            setHolidayStatus(`Supabase недоступен; показан опубликованный список. ${error.message}`, true);
+        }
     }
 }
 
@@ -252,7 +275,7 @@ function renderAdminHolidays() {
         return;
     }
 
-    list.innerHTML = appHolidays.map((holiday, index) => `
+    list.innerHTML = renderCollapsibleList(appHolidays, (holiday, index) => `
         <div class="event-item">
             <h4>${escapeHtml(holiday.name)}</h4>
             <div class="event-meta">
@@ -264,10 +287,10 @@ function renderAdminHolidays() {
                 <button type="button" class="danger" onclick="deleteHoliday(${index})">Удалить</button>
             </div>
         </div>
-    `).join('');
+    `);
 }
 
-function saveHoliday() {
+async function saveHoliday() {
     const name = document.getElementById('holiday-name').value.trim();
     const date = document.getElementById('holiday-date').value.trim();
     const eventType = document.getElementById('holiday-event-type').value;
@@ -287,13 +310,13 @@ function saveHoliday() {
     }
 
     try {
-        localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(updated));
+        await window.BuhloSupabase.replaceHolidays(updated);
         appHolidays = updated;
         renderAdminHolidays();
         resetHolidayForm();
-        setHolidayStatus('Черновик сохранён в этом браузере. Скачайте holidays.json и опубликуйте изменения.');
+        setHolidayStatus('Праздники сохранены в Supabase.');
     } catch (error) {
-        setHolidayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+        setHolidayStatus(`Не удалось сохранить праздники: ${error.message}`, true);
     }
 }
 
@@ -309,13 +332,13 @@ function editHoliday(index) {
     document.getElementById('holiday-form-title').textContent = 'Редактировать праздник';
 }
 
-function deleteHoliday(index) {
+async function deleteHoliday(index) {
     const holiday = appHolidays[index];
     if (!holiday || !confirm(`Удалить праздник «${holiday.name}»?`)) return;
 
     const updated = appHolidays.filter((_, itemIndex) => itemIndex !== index);
     try {
-        localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(updated));
+        await window.BuhloSupabase.replaceHolidays(updated);
         appHolidays = updated;
         renderAdminHolidays();
         if (editingHolidayIndex === index) {
@@ -323,9 +346,9 @@ function deleteHoliday(index) {
         } else if (editingHolidayIndex !== null && editingHolidayIndex > index) {
             editingHolidayIndex -= 1;
         }
-        setHolidayStatus('Праздник удалён из черновика. Скачайте holidays.json и опубликуйте изменения.');
+        setHolidayStatus('Праздник удалён из Supabase.');
     } catch (error) {
-        setHolidayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+        setHolidayStatus(`Не удалось удалить праздник: ${error.message}`, true);
     }
 }
 
@@ -338,17 +361,84 @@ function resetHolidayForm() {
     document.getElementById('holiday-form-title').textContent = 'Добавить праздник';
 }
 
-async function discardHolidayDraft() {
+async function migrateHolidayDraft() {
     try {
-        if (localStorage.getItem(HOLIDAYS_DRAFT_KEY) !== null &&
-            !confirm('Удалить локальный черновик и загрузить опубликованные праздники?')) {
-            return;
-        }
+        const draft = localStorage.getItem(HOLIDAYS_DRAFT_KEY);
+        if (draft === null || !confirm('Заменить список праздников в Supabase старым локальным черновиком?')) return;
+        const holidays = parseHolidays(draft);
+        await window.BuhloSupabase.replaceHolidays(holidays);
+        appHolidays = holidays;
         localStorage.removeItem(HOLIDAYS_DRAFT_KEY);
-        resetHolidayForm();
-        await loadAdminHolidays();
+        document.getElementById('legacy-holiday-draft').classList.add('hidden');
+        renderAdminHolidays();
+        setHolidayStatus('Старый черновик перенесён в Supabase.');
     } catch (error) {
-        setHolidayStatus(`Не удалось загрузить опубликованный список: ${error.message}`, true);
+        setHolidayStatus(`Не удалось перенести черновик: ${error.message}`, true);
+    }
+}
+
+async function syncHolidaysWithServer(action) {
+    try {
+        if (action === 'save') {
+            if (appHolidays.length === 0) {
+                const response = await fetch('../data/holidays.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Не удалось загрузить data/holidays.json (HTTP ${response.status})`);
+                const published = parseHolidays(await response.json());
+                if (published.length === 0) {
+                    setHolidayStatus('Опубликованный файл holidays.json тоже пуст.', true);
+                    return;
+                }
+                if (!confirm(`В Supabase список пуст. Импортировать ${published.length} записей из data/holidays.json?`)) {
+                    return;
+                }
+                await window.BuhloSupabase.replaceHolidays(published);
+                appHolidays = published;
+                renderAdminHolidays();
+                setHolidayStatus(`${published.length} праздников импортировано из data/holidays.json в Supabase.`);
+                return;
+            }
+            await window.BuhloSupabase.replaceHolidays(appHolidays);
+            setHolidayStatus('Праздники сохранены в Supabase.');
+        } else {
+            appHolidays = await window.BuhloSupabase.getHolidays();
+            renderAdminHolidays();
+            setHolidayStatus('Праздники загружены из Supabase.');
+        }
+    } catch (error) {
+        setHolidayStatus(`Синхронизация не удалась: ${error.message}`, true);
+    }
+}
+
+async function syncEventsWithServer(action) {
+    try {
+        if (action === 'save') {
+            let events = appEvents;
+            if (events.length === 0) {
+                const response = await fetch('../data/events.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Не удалось загрузить data/events.json (HTTP ${response.status})`);
+                events = parseEvents(await response.json());
+                if (events.length === 0) {
+                    setEventsStatus('Опубликованный файл events.json тоже пуст.', true);
+                    return;
+                }
+                if (!confirm(`В Supabase список пуст. Импортировать ${events.length} записей из data/events.json?`)) {
+                    return;
+                }
+            }
+            await window.BuhloSupabase.replaceEvents(events);
+            appEvents = await window.BuhloSupabase.getEvents();
+            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+            renderEvents();
+            setEventsStatus('События сохранены в Supabase.');
+        } else {
+            appEvents = await window.BuhloSupabase.getEvents();
+            localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+            appRegistrations = await window.BuhloSupabase.getAdminRegistrations();
+            renderEvents();
+            setEventsStatus('События загружены из Supabase.');
+        }
+    } catch (error) {
+        setEventsStatus(`Синхронизация не удалась: ${error.message}`, true);
     }
 }
 
@@ -362,6 +452,15 @@ function escapeHtml(value) {
     })[character]);
 }
 
+const ADMIN_LIST_LIMIT = 5;
+
+function renderCollapsibleList(items, renderItem) {
+    const head = items.slice(0, ADMIN_LIST_LIMIT).map(renderItem).join('');
+    if (items.length <= ADMIN_LIST_LIMIT) return head;
+    const rest = items.slice(ADMIN_LIST_LIMIT).map((item, offset) => renderItem(item, offset + ADMIN_LIST_LIMIT)).join('');
+    return `${head}<details class="list-more"><summary>Показать остальные (${items.length - ADMIN_LIST_LIMIT})</summary>${rest}</details>`;
+}
+
 function renderAdminBirthdays() {
     const list = document.getElementById('birthdays-list');
     if (!list) return;
@@ -371,7 +470,7 @@ function renderAdminBirthdays() {
         return;
     }
 
-    list.innerHTML = appBirthdays.map((birthday, index) => `
+    list.innerHTML = renderCollapsibleList(appBirthdays, (birthday, index) => `
         <div class="event-item">
             <h4>${escapeHtml(birthday.name)}</h4>
             <div class="event-meta"><span class="tag">${formatDate(birthday.date)}</span></div>
@@ -380,10 +479,10 @@ function renderAdminBirthdays() {
                 <button type="button" class="danger" onclick="deleteBirthday(${index})">Удалить</button>
             </div>
         </div>
-    `).join('');
+    `);
 }
 
-function saveBirthday() {
+async function saveBirthday() {
     const nameInput = document.getElementById('birthday-name');
     const dateInput = document.getElementById('birthday-date');
     const name = nameInput.value.trim();
@@ -402,13 +501,13 @@ function saveBirthday() {
     }
 
     try {
-        localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(updated));
+        await window.BuhloSupabase.replaceBirthdays(updated);
         appBirthdays = updated;
         renderAdminBirthdays();
         resetBirthdayForm();
-        setBirthdayStatus('Черновик сохранён в этом браузере. Скачайте birthdays.json и опубликуйте изменения.');
+        setBirthdayStatus('Дни рождения сохранены в Supabase.');
     } catch (error) {
-        setBirthdayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+        setBirthdayStatus(`Не удалось сохранить дни рождения: ${error.message}`, true);
     }
 }
 
@@ -423,13 +522,13 @@ function editBirthday(index) {
     document.getElementById('birthday-form-title').textContent = 'Редактировать день рождения';
 }
 
-function deleteBirthday(index) {
+async function deleteBirthday(index) {
     const birthday = appBirthdays[index];
     if (!birthday || !confirm(`Удалить день рождения «${birthday.name}»?`)) return;
 
     const updated = appBirthdays.filter((_, itemIndex) => itemIndex !== index);
     try {
-        localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(updated));
+        await window.BuhloSupabase.replaceBirthdays(updated);
         appBirthdays = updated;
         renderAdminBirthdays();
         if (editingBirthdayIndex === index) {
@@ -437,9 +536,9 @@ function deleteBirthday(index) {
         } else if (editingBirthdayIndex !== null && editingBirthdayIndex > index) {
             editingBirthdayIndex -= 1;
         }
-        setBirthdayStatus('Запись удалена из черновика. Скачайте birthdays.json и опубликуйте изменения.');
+        setBirthdayStatus('Запись удалена из Supabase.');
     } catch (error) {
-        setBirthdayStatus(`Не удалось сохранить черновик: ${error.message}`, true);
+        setBirthdayStatus(`Не удалось удалить день рождения: ${error.message}`, true);
     }
 }
 
@@ -451,17 +550,19 @@ function resetBirthdayForm() {
     document.getElementById('birthday-form-title').textContent = 'Добавить день рождения';
 }
 
-async function discardBirthdayDraft() {
+async function migrateBirthdayDraft() {
     try {
-        if (localStorage.getItem(BIRTHDAYS_DRAFT_KEY) !== null &&
-            !confirm('Удалить локальный черновик и загрузить опубликованные дни рождения?')) {
-            return;
-        }
+        const draft = localStorage.getItem(BIRTHDAYS_DRAFT_KEY);
+        if (draft === null || !confirm('Заменить дни рождения в Supabase старым локальным черновиком?')) return;
+        const birthdays = parseBirthdays(draft);
+        await window.BuhloSupabase.replaceBirthdays(birthdays);
+        appBirthdays = birthdays;
         localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
-        resetBirthdayForm();
-        await loadAdminBirthdays();
+        document.getElementById('legacy-birthday-draft').classList.add('hidden');
+        renderAdminBirthdays();
+        setBirthdayStatus('Старый черновик перенесён в Supabase.');
     } catch (error) {
-        setBirthdayStatus(`Не удалось загрузить опубликованный список: ${error.message}`, true);
+        setBirthdayStatus(`Не удалось перенести черновик: ${error.message}`, true);
     }
 }
 
@@ -475,7 +576,7 @@ function downloadBirthdaysJson() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setBirthdayStatus('Файл birthdays.json скачан. Добавьте его в data/ и опубликуйте сайт.');
+    setBirthdayStatus('Резервная копия birthdays.json скачана.');
 }
 
 function downloadHolidaysJson() {
@@ -488,7 +589,7 @@ function downloadHolidaysJson() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setHolidayStatus('Файл holidays.json скачан. Добавьте его в data/ и опубликуйте сайт.');
+    setHolidayStatus('Резервная копия holidays.json скачана.');
 }
 
 function setHolidayStatus(message, isError = false) {
@@ -503,14 +604,15 @@ function importHolidaysJson(input) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
         try {
             if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
             const imported = parseHolidays(reader.result);
-            localStorage.setItem(HOLIDAYS_DRAFT_KEY, JSON.stringify(imported));
+            if (!confirm('Полностью заменить список праздников в общей базе данными из этого файла?')) return;
+            await window.BuhloSupabase.replaceHolidays(imported);
             appHolidays = imported;
             renderAdminHolidays();
-            setHolidayStatus('JSON импортирован в локальный черновик.');
+            setHolidayStatus('JSON импортирован в Supabase.');
         } catch (error) {
             setHolidayStatus(`Ошибка импорта: ${error.message}`, true);
         } finally {
@@ -529,14 +631,15 @@ function importBirthdaysJson(input) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
         try {
             if (typeof reader.result !== 'string') throw new Error('Не удалось прочитать файл');
             const imported = parseBirthdays(reader.result);
-            localStorage.setItem(BIRTHDAYS_DRAFT_KEY, JSON.stringify(imported));
+            if (!confirm('Полностью заменить список дней рождения в общей базе данными из этого файла?')) return;
+            await window.BuhloSupabase.replaceBirthdays(imported);
             appBirthdays = imported;
             renderAdminBirthdays();
-            setBirthdayStatus('JSON импортирован в локальный черновик.');
+            setBirthdayStatus('JSON импортирован в Supabase.');
         } catch (error) {
             setBirthdayStatus(`Ошибка импорта: ${error.message}`, true);
         } finally {
@@ -551,34 +654,39 @@ function importBirthdaysJson(input) {
 }
 
 async function loadBirthdaysFromServer() {
-    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
-    const response = await fetch(`${API_URL}/birthdays`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const birthdays = parseBirthdays(await response.json());
-    localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
-    appBirthdays = birthdays;
+    appBirthdays = await window.BuhloSupabase.getBirthdays();
     renderAdminBirthdays();
 }
 
 async function saveBirthdaysToServer() {
-    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
-    const response = await fetch(`${API_URL}/birthdays`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ birthdays: appBirthdays })
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    localStorage.removeItem(BIRTHDAYS_DRAFT_KEY);
+    await window.BuhloSupabase.replaceBirthdays(appBirthdays);
 }
 
 async function syncBirthdaysWithServer(action) {
     try {
         if (action === 'save') {
+            if (appBirthdays.length === 0) {
+                const response = await fetch('../data/birthdays.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Не удалось загрузить data/birthdays.json (HTTP ${response.status})`);
+                const published = parseBirthdays(await response.json());
+                if (published.length === 0) {
+                    setBirthdayStatus('Опубликованный файл birthdays.json тоже пуст.', true);
+                    return;
+                }
+                if (!confirm(`В Supabase список пуст. Импортировать ${published.length} записей из data/birthdays.json?`)) {
+                    return;
+                }
+                await window.BuhloSupabase.replaceBirthdays(published);
+                appBirthdays = published;
+                renderAdminBirthdays();
+                setBirthdayStatus(`${published.length} дней рождения импортировано из data/birthdays.json в Supabase.`);
+                return;
+            }
             await saveBirthdaysToServer();
-            setBirthdayStatus('Дни рождения сохранены на сервере.');
+            setBirthdayStatus('Дни рождения сохранены в Supabase.');
         } else {
             await loadBirthdaysFromServer();
-            setBirthdayStatus('Дни рождения загружены с сервера.');
+            setBirthdayStatus('Дни рождения загружены из Supabase.');
         }
     } catch (error) {
         setBirthdayStatus(`Синхронизация не удалась: ${error.message}`, true);
@@ -594,26 +702,30 @@ function renderEvents() {
         return;
     }
 
-    list.innerHTML = appEvents.map(event => {
+    list.innerHTML = renderCollapsibleList(appEvents, event => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
+        const registrations = appRegistrations.filter(item => item.event_id === event.id);
         return `
             <div class="event-item">
-                <h4>${event.title || 'Без названия'}</h4>
-                <p>${event.description || 'Описание отсутствует'}</p>
+                <h4>${escapeHtml(event.title || 'Без названия')}</h4>
+                <p>${escapeHtml(event.description || 'Описание отсутствует')}</p>
                 <div class="event-meta">
                     <span class="tag">${event.date ? formatDate(event.date) : 'Дата не указана'}</span>
                     ${event.recurrence === 'yearly' ? '<span class="tag">Ежегодно</span>' : ''}
-                    <span class="tag">${event.time || 'Время не указано'}</span>
-                    <span class="tag">${event.location || 'Место не указано'}</span>
+                    <span class="tag">${escapeHtml(event.time || 'Время не указано')}</span>
+                    <span class="tag">${escapeHtml(event.location || 'Место не указано')}</span>
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
+                ${registrations.length ? `<div class="registration-list"><strong>Записи:</strong>${registrations.map(person =>
+                    `<p>${escapeHtml(person.name)} — ${escapeHtml(person.contact || 'не указан')}${person.notes ? `; ${escapeHtml(person.notes)}` : ''}</p>`
+                ).join('')}</div>` : ''}
                 <div class="event-actions">
                     <button type="button" onclick="editEvent(${event.id})">Редактировать</button>
                     <button type="button" class="danger" onclick="deleteEvent(${event.id})">Удалить</button>
                 </div>
             </div>
         `;
-    }).join('');
+    });
 }
 
 function formatDate(dateString) {
@@ -636,37 +748,30 @@ async function saveEvent() {
         return;
     }
 
-    if (editingEventId !== null) {
-        const index = appEvents.findIndex(item => item.id === editingEventId);
-        if (index >= 0) {
-            appEvents[index] = {
-                ...appEvents[index], title, date, time,
-                recurrence,
-                location: location || appEvents[index].location || 'Место не указано',
-                description: description || appEvents[index].description || 'Описание события скоро появится.',
-                maxParticipants: limit
-            };
-        }
-    } else {
-        appEvents.unshift({
-            id: Date.now(), title, date, time,
-            recurrence,
-            location: location || 'Место не указано',
-            description: description || 'Описание события скоро появится.',
-            participants: [], maxParticipants: limit
-        });
-    }
+    const existingIndex = appEvents.findIndex(item => item.id === editingEventId);
+    const previous = existingIndex >= 0 ? appEvents[existingIndex] : null;
+    const event = {
+        ...(previous || {}),
+        title,
+        date,
+        time,
+        recurrence,
+        location: location || previous?.location || 'Место не указано',
+        description: description || previous?.description || 'Описание события скоро появится.',
+        participants: previous?.participants || [],
+        maxParticipants: limit
+    };
 
-    localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-    renderEvents();
-    resetForm();
-
-    if (API_URL) {
-        try {
-            await saveEventsToServer();
-        } catch (error) {
-            alert('Локально сохранено, но серверная синхронизация не удалась: ' + error.message);
-        }
+    try {
+        const saved = await window.BuhloSupabase.saveEvent(event);
+        if (existingIndex >= 0) appEvents[existingIndex] = saved;
+        else appEvents.unshift(saved);
+        localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
+        renderEvents();
+        resetForm();
+        setEventsStatus('Событие сохранено в Supabase.');
+    } catch (error) {
+        setEventsStatus(`Не удалось сохранить событие: ${error.message}`, true);
     }
 }
 
@@ -683,24 +788,24 @@ function editEvent(eventId) {
     document.getElementById('event-description').value = event.description || '';
     document.getElementById('event-limit').value = event.maxParticipants || 30;
 
-    const button = document.querySelector('.admin-actions button');
-    if (button) button.textContent = 'Обновить событие';
+    document.getElementById('save-event-button').textContent = 'Обновить событие';
+    document.getElementById('event-form-title').textContent = 'Редактировать событие';
 }
 
 async function deleteEvent(eventId) {
     if (!confirm('Удалить событие?')) return;
+    try {
+        await window.BuhloSupabase.deleteEvent(eventId);
+    } catch (error) {
+        setEventsStatus(`Не удалось удалить событие: ${error.message}`, true);
+        return;
+    }
     appEvents = appEvents.filter(item => item.id !== eventId);
     localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
     renderEvents();
     if (editingEventId === eventId) resetForm();
-
-    if (API_URL) {
-        try {
-            await saveEventsToServer();
-        } catch (error) {
-            alert('Локально удалено, но серверная синхронизация не удалась: ' + error.message);
-        }
-    }
+    appRegistrations = appRegistrations.filter(item => item.event_id !== eventId);
+    setEventsStatus('Событие удалено из Supabase.');
 }
 
 function resetForm() {
@@ -713,8 +818,8 @@ function resetForm() {
     document.getElementById('event-description').value = '';
     document.getElementById('event-limit').value = 30;
 
-    const button = document.querySelector('.admin-actions button');
-    if (button) button.textContent = 'Сохранить событие';
+    document.getElementById('save-event-button').textContent = 'Сохранить событие';
+    document.getElementById('event-form-title').textContent = 'Добавить событие';
 }
 
 function downloadEventsJson() {
@@ -736,13 +841,16 @@ function importEventsJson(input) {
     const reader = new FileReader();
     reader.onload = async event => {
         try {
-            appEvents = parseEvents(event.target.result);
+            const imported = parseEvents(event.target.result);
+            if (!confirm('Заменить список событий в общей базе данными из файла? Удалённые из файла события и их регистрации будут удалены.')) return;
+            await window.BuhloSupabase.replaceEvents(imported);
+            appEvents = imported;
+            await loadEvents();
             localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
             renderEvents();
-            alert('JSON успешно импортирован');
-            if (API_URL) await saveEventsToServer();
+            setEventsStatus('JSON импортирован в Supabase.');
         } catch (error) {
-            alert('Ошибка импорта: ' + error.message);
+            setEventsStatus(`Ошибка импорта: ${error.message}`, true);
         } finally {
             input.value = '';
         }
@@ -750,63 +858,62 @@ function importEventsJson(input) {
     reader.readAsText(file);
 }
 
-// These functions call your own backend. The backend, not this browser code,
-// must keep the GitHub token and update data/events.json through GitHub API.
 async function loadEventsFromServer() {
-    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
-    const response = await fetch(`${API_URL}/events`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    appEvents = parseEvents(await response.json());
-    localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
-    renderEvents();
+    await loadEvents();
 }
 
-async function saveEventsToServer() {
-    if (!API_URL) throw new Error('BUHLO_API_URL не настроен');
-    const response = await fetch(`${API_URL}/events`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: appEvents })
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-}
-
-// Backwards-compatible names for the existing admin HTML buttons.
-function loadEventsFromGitHub() {
-    return loadEventsFromServer();
-}
-
-function saveEventsToGitHub() {
-    return saveEventsToServer();
-}
-
-function changeAdminPassword() {
-    // NOTE: Password changes are NOT persisted to localStorage (session-only)
-    // Only the original ENCRYPTED_ADMIN_PASSWORD is valid per session
-    const currentPassword = document.getElementById('current-password').value;
+async function changeAdminPassword() {
     const newPassword = document.getElementById('new-password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
     const messageBox = document.getElementById('password-message');
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    if (!newPassword || !confirmPassword) {
         messageBox.textContent = 'Заполните все поля';
-    } else if (currentPassword !== getCurrentPassword()) {
-        messageBox.textContent = 'Текущий пароль введён неверно';
-    } else if (newPassword.length < 3) {
-        messageBox.textContent = 'Новый пароль должен быть не короче 3 символов';
-    } else if (newPassword !== confirmPassword) {
+        messageBox.classList.remove('hidden', 'error');
+        messageBox.classList.add('error');
+        return;
+    }
+    if (newPassword.length < 8) {
+        messageBox.textContent = 'Новый пароль должен быть не короче 8 символов';
+        messageBox.classList.remove('hidden', 'error');
+        messageBox.classList.add('error');
+        return;
+    }
+    if (newPassword !== confirmPassword) {
         messageBox.textContent = 'Новый пароль и подтверждение не совпадают';
-    } else {
-        // For security: password changes are NOT saved to localStorage
-        // Only applies during current session in memory
-        messageBox.textContent = 'Примечание: пароли не сохраняются постоянно (сессионные только)';
-        document.getElementById('current-password').value = '';
-        document.getElementById('new-password').value = '';
-        document.getElementById('confirm-password').value = '';
+        messageBox.classList.remove('hidden', 'error');
+        messageBox.classList.add('error');
+        return;
     }
 
-    messageBox.classList.remove('hidden');
+    try {
+        await window.BuhloSupabase.changePassword(newPassword);
+        messageBox.textContent = 'Пароль обновлён в Supabase Auth.';
+        messageBox.classList.remove('hidden', 'error');
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+    } catch (error) {
+        messageBox.textContent = `Не удалось сменить пароль: ${error.message}`;
+        messageBox.classList.remove('hidden');
+        messageBox.classList.add('error');
+    }
 }
+
+document.addEventListener('click', function (event) {
+    const button = event.target.closest('.btn, button');
+    if (!button || button.disabled ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const rect = button.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${(event.clientX || rect.left + rect.width / 2) - rect.left - size / 2}px`;
+    ripple.style.top = `${(event.clientY || rect.top + rect.height / 2) - rect.top - size / 2}px`;
+    button.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+});
 
 document.addEventListener('DOMContentLoaded', function () {
     // Session-only auth: admin must login on each page load
@@ -816,6 +923,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 window.onbeforeunload = function() {
-    // Clear auth on page unload to prevent auto-login
+    window.BuhloSupabase.signOut();
     isAdminAuthenticated = false;
 };
