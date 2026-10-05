@@ -717,7 +717,7 @@ function renderEvents() {
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
                 ${registrations.length ? `<div class="registration-list"><strong>Записи:</strong>${registrations.map(person =>
-                    `<p>${escapeHtml(person.name)} — ${escapeHtml(person.contact || 'не указан')}${person.notes ? `; ${escapeHtml(person.notes)}` : ''}</p>`
+                    `<div class="registration-row"><p>${escapeHtml(person.name)} — ${escapeHtml(person.contact || 'не указан')}${person.notes ? `; ${escapeHtml(person.notes)}` : ''}</p><button type="button" class="danger" onclick="deleteRegistration(${person.id})">Удалить</button></div>`
                 ).join('')}</div>` : ''}
                 <div class="event-actions">
                     <button type="button" onclick="editEvent(${event.id})">Редактировать</button>
@@ -806,6 +806,18 @@ async function deleteEvent(eventId) {
     if (editingEventId === eventId) resetForm();
     appRegistrations = appRegistrations.filter(item => item.event_id !== eventId);
     setEventsStatus('Событие удалено из Supabase.');
+}
+
+async function deleteRegistration(registrationId) {
+    if (!confirm('Удалить участника из записи?')) return;
+    try {
+        await window.BuhloSupabase.deleteRegistration(registrationId);
+        appRegistrations = appRegistrations.filter(item => item.id !== registrationId);
+        renderEvents();
+        setEventsStatus('Участник удалён.');
+    } catch (error) {
+        setEventsStatus(`Не удалось удалить участника: ${error.message}`, true);
+    }
 }
 
 function resetForm() {

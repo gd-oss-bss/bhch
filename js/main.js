@@ -626,7 +626,7 @@ function renderEvents() {
                 <details class="participants-more">
                     <summary>Записались (${participants.length})</summary>
                     <div class="participants-list">
-                        ${participants.map(person => `<span class="participant-pill">${escapeHtml(person.name)}</span>`).join('') || '<span class="participant-pill">Пока никого</span>'}
+                        ${participants.map(person => `<div class="participant-pill"><span class="participant-name">${escapeHtml(person.name)}</span>${person.notes ? `<span class="participant-note">${escapeHtml(person.notes)}</span>` : ''}</div>`).join('') || '<div class="participant-pill">Пока никого</div>'}
                     </div>
                 </details>
             </article>
@@ -691,7 +691,7 @@ async function submitRegistration(eventId) {
         const event = appEvents.find(item => item.id === eventId);
         if (event) {
             event.participants = Array.isArray(event.participants) ? event.participants : [];
-            if (!event.participants.some(person => person.name === name)) event.participants.push({ name });
+            if (!event.participants.some(person => person.name === name)) event.participants.push({ name, notes: notes || '' });
             localStorage.setItem(EVENTS_KEY, JSON.stringify(appEvents));
         }
         renderEvents();

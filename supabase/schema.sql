@@ -285,14 +285,16 @@ CREATE POLICY "Admins manage registrations"
     ON public.event_registrations FOR ALL TO authenticated
     USING (public.is_buhlo_admin()) WITH CHECK (public.is_buhlo_admin());
 
-CREATE OR REPLACE FUNCTION public.get_public_event_participants()
-RETURNS TABLE (event_id bigint, name text)
+DROP FUNCTION IF EXISTS public.get_public_event_participants();
+
+CREATE FUNCTION public.get_public_event_participants()
+RETURNS TABLE (event_id bigint, name text, notes text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT registrations.event_id, registrations.name
+    SELECT registrations.event_id, registrations.name, registrations.notes
     FROM public.event_registrations AS registrations
     ORDER BY registrations.registered_at, registrations.id;
 $$;

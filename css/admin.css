@@ -366,3 +366,19 @@ textarea {
 .list-more[open] > summary {
     margin-bottom: 14px;
 }
+
+.registration-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.registration-row p {
+    margin: 4px 0;
+}
+
+.registration-row button {
+    flex-shrink: 0;
+    padding: 6px 12px;
+}
