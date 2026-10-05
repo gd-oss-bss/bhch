@@ -752,6 +752,12 @@ CREATE TABLE IF NOT EXISTS public.site_visits (
 CREATE INDEX IF NOT EXISTS site_visits_visited_at_idx ON public.site_visits (visited_at);
 ALTER TABLE public.site_visits ENABLE ROW LEVEL SECURITY;
 
+-- No direct access: visits are written and read only through the RPC functions below.
+DROP POLICY IF EXISTS "No direct access to site_visits" ON public.site_visits;
+CREATE POLICY "No direct access to site_visits"
+    ON public.site_visits FOR ALL TO anon, authenticated
+    USING (false) WITH CHECK (false);
+
 CREATE OR REPLACE FUNCTION public.log_site_visit(p_visitor_id uuid, p_page text DEFAULT 'hub')
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
