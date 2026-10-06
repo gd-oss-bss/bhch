@@ -30,7 +30,10 @@ function showAuth() {
 }
 
 async function checkAdminLogin() {
-    const email = document.getElementById('admin-email').value.trim();
+    const login = document.getElementById('admin-email').value.trim();
+    const domainSelect = document.getElementById('admin-email-domain');
+    const email = login.includes('@') ? login : login + domainSelect.value;
+    localStorage.setItem('admin-email-domain', domainSelect.value);
     const password = document.getElementById('admin-password').value;
     const error = document.getElementById('admin-error');
 
@@ -1216,6 +1219,11 @@ document.addEventListener('click', function (event) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
+    const savedDomain = localStorage.getItem('admin-email-domain');
+    const domainSelect = document.getElementById('admin-email-domain');
+    if (savedDomain && domainSelect && [...domainSelect.options].some(o => o.value === savedDomain)) {
+        domainSelect.value = savedDomain;
+    }
     // Session-only auth: admin must login on each page load
     if (!isAdminAuthenticated) {
         showAuth();
