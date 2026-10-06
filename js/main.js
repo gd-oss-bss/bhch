@@ -858,12 +858,12 @@ function renderEvents() {
                         <span class="event-date">${formatDate(event.date)}</span>
                         <h3>${escapeHtml(event.title)}</h3>
                     </div>
-                    <span class="event-badge">${participants.length}/${event.maxParticipants || 50}</span>
                 </div>
                 <p>${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
                 <div class="event-meta">
-                    <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span>
-                    <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span>
+                    <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span><br>
+                    <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span><br>
+                    <span  class="event-badge">✍️ ${participants.length} из ${event.maxParticipants || 50}</span>
                 </div>
                 <div class="event-actions">
                     <button type="button" class="secondary-btn" onclick="showRegistrationForm(${event.id})">Записаться</button>
