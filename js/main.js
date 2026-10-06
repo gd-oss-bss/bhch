@@ -728,6 +728,21 @@ function escapeHtml(value) {
     })[character]);
 }
 
+function renderEventLocation(location) {
+    const value = String(location || '').trim();
+    if (!/^https?:\/\//i.test(value)) return escapeHtml(value);
+
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        return escapeHtml(value);
+    }
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return escapeHtml(value);
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
+}
+
 function getNextBirthday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -848,7 +863,7 @@ function renderEvents() {
                 <p>${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
                 <div class="event-meta">
                     <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span>
-                    <span>📍 ${escapeHtml(event.location || 'Место не указано')}</span>
+                    <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span>
                 </div>
                 <div class="event-actions">
                     <button type="button" class="secondary-btn" onclick="showRegistrationForm(${event.id})">Записаться</button>

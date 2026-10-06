@@ -423,6 +423,21 @@ function escapeHtml(value) {
     })[character]);
 }
 
+function renderEventLocation(location) {
+    const value = String(location || '').trim();
+    if (!/^https?:\/\//i.test(value)) return escapeHtml(value);
+
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        return escapeHtml(value);
+    }
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return escapeHtml(value);
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
+}
+
 const ADMIN_LIST_LIMIT = 5;
 
 function renderCollapsibleList(items, renderItem) {
@@ -591,7 +606,7 @@ function renderEvents() {
                     <span class="tag">${event.date ? formatDate(event.date) : 'Дата не указана'}</span>
                     ${event.recurrence === 'yearly' ? '<span class="tag">Ежегодно</span>' : ''}
                     <span class="tag">${escapeHtml(event.time || 'Время не указано')}</span>
-                    <span class="tag">${escapeHtml(event.location || 'Место не указано')}</span>
+                    <span class="tag">${renderEventLocation(event.location || 'Место не указано')}</span>
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
                 ${registrations.length ? `<div class="registration-list"><strong>Записи:</strong>${registrations.map(person =>

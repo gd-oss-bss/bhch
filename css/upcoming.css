@@ -75,6 +75,16 @@
     margin-top: 10px;
 }
 
+.event-location-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.event-location-link:hover {
+    color: var(--accent);
+}
+
 .participants-list {
     display: flex;
     flex-direction: column;

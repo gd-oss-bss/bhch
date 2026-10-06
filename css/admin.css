@@ -297,6 +297,16 @@ textarea {
     font-size: 0.75rem;
 }
 
+.event-location-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.event-location-link:hover {
+    color: var(--accent);
+}
+
 .event-actions {
     display: flex;
     gap: 10px;
