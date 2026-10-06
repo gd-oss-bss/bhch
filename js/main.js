@@ -859,7 +859,7 @@ function renderEvents() {
                         <h3>${escapeHtml(event.title)}</h3>
                     </div>
                 </div>
-                <p>${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
+                <p>📋 ${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
                 <div class="event-meta">
                     <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span><br>
                     <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span><br>
