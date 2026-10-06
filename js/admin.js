@@ -1165,43 +1165,6 @@ async function deleteGalleryPhoto(id) {
     }
 }
 
-async function changeAdminPassword() {
-    const newPassword = document.getElementById('new-password').value;
-    const confirmPassword = document.getElementById('confirm-password').value;
-    const messageBox = document.getElementById('password-message');
-
-    if (!newPassword || !confirmPassword) {
-        messageBox.textContent = 'Заполните все поля';
-        messageBox.classList.remove('hidden', 'error');
-        messageBox.classList.add('error');
-        return;
-    }
-    if (newPassword.length < 8) {
-        messageBox.textContent = 'Новый пароль должен быть не короче 8 символов';
-        messageBox.classList.remove('hidden', 'error');
-        messageBox.classList.add('error');
-        return;
-    }
-    if (newPassword !== confirmPassword) {
-        messageBox.textContent = 'Новый пароль и подтверждение не совпадают';
-        messageBox.classList.remove('hidden', 'error');
-        messageBox.classList.add('error');
-        return;
-    }
-
-    try {
-        await window.BuhloSupabase.changePassword(newPassword);
-        messageBox.textContent = 'Пароль обновлён в Supabase Auth.';
-        messageBox.classList.remove('hidden', 'error');
-        document.getElementById('new-password').value = '';
-        document.getElementById('confirm-password').value = '';
-    } catch (error) {
-        messageBox.textContent = `Не удалось сменить пароль: ${error.message}`;
-        messageBox.classList.remove('hidden');
-        messageBox.classList.add('error');
-    }
-}
-
 document.addEventListener('click', function (event) {
     const button = event.target.closest('.btn, button');
     if (!button || button.disabled ||
