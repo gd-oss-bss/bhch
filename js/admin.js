@@ -22,6 +22,15 @@ function showDashboard() {
     document.getElementById('auth-block').classList.add('hidden');
     document.getElementById('topbar').classList.remove('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    applyInfoOnlyMode();
+}
+
+function applyInfoOnlyMode() {
+    const infoOnly = !!window.BuhloSupabase.isInfoEditor;
+    document.querySelectorAll('#dashboard > .panel').forEach(panel => {
+        panel.classList.toggle('hidden', infoOnly && panel.id !== 'info-panel');
+    });
+    document.getElementById('view-toggle').classList.toggle('hidden', infoOnly);
 }
 
 function showAuth() {
@@ -45,7 +54,9 @@ async function checkAdminLogin() {
         document.getElementById('admin-password').value = '';
         error.style.display = 'none';
         showDashboard();
-        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers()]);
+        await (window.BuhloSupabase.isInfoEditor
+            ? loadAdminInfo()
+            : Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]));
     } catch (loginError) {
         error.textContent = /invalid_credentials/.test(loginError.message)
             ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
@@ -1277,5 +1288,110 @@ async function deleteAdminUser(index) {
         setUsersStatus('Пользователь удалён.');
     } catch (error) {
         setUsersStatus(`Не удалось удалить: ${error.message}`, true);
+    }
+}
+
+let appInfoPosts = [];
+
+function setInfoStatus(message, isError = false) {
+    const status = document.getElementById('info-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+async function loadAdminInfo() {
+    const canEdit = window.BuhloSupabase.isInfoEditor;
+    document.getElementById('info-editor-form').classList.toggle('hidden', !canEdit);
+    document.getElementById('info-readonly-note').classList.toggle('hidden', canEdit);
+    try {
+        appInfoPosts = await window.BuhloSupabase.getInfoPosts();
+        setInfoStatus(`Записей: ${appInfoPosts.length}`);
+    } catch (error) {
+        appInfoPosts = [];
+        setInfoStatus(`Не удалось загрузить: ${error.message}`, true);
+    }
+    renderAdminInfo();
+}
+
+function renderAdminInfo() {
+    const list = document.getElementById('info-posts-list');
+    list.innerHTML = appInfoPosts.length
+        ? appInfoPosts.map((post, index) => `
+            <div class="event-item">
+                <h4>${escapeHtml(post.title)}</h4>
+                <div class="event-meta">
+                    <span class="tag">${new Date(post.created_at).toLocaleString('ru-RU')}</span>
+                    <span class="tag">Картинок: ${post.photos.length}</span>
+                    ${post.link_url ? `<span class="tag">${escapeHtml(post.link_url)}</span>` : ''}
+                </div>
+                ${post.body ? `<p>${escapeHtml(post.body)}</p>` : ''}
+                <div class="event-actions">
+                    <button type="button" class="danger" onclick="deleteInfoPostAdmin(${index})">Удалить</button>
+                </div>
+            </div>
+        `).join('')
+        : '<div class="empty">Записей пока нет.</div>';
+}
+
+async function addInfoPost() {
+    const title = document.getElementById('info-title').value.trim();
+    const body = document.getElementById('info-body').value.trim();
+    const link = document.getElementById('info-link').value.trim();
+    const files = Array.from(document.getElementById('info-files').files || []);
+    const button = document.getElementById('info-add-button');
+
+    if (!title) return setInfoStatus('Укажите заголовок.', true);
+    if (link && !/^https?:\/\/\S+$/i.test(link)) return setInfoStatus('Ссылка должна начинаться с http:// или https://', true);
+    const invalid = files.find(file => !GALLERY_TYPES[file.type] || file.size > GALLERY_MAX_BYTES);
+    if (invalid) return setInfoStatus(`Файл «${invalid.name}» не подходит: нужен JPG, PNG, WebP или GIF до 10 МБ.`, true);
+
+    button.disabled = true;
+    let post = null;
+    const uploadedPaths = [];
+    try {
+        setInfoStatus('Публикуем…');
+        const categoryId = files.length ? await window.BuhloSupabase.getInfoCategoryId() : null;
+        post = await window.BuhloSupabase.createInfoPost({ title, body, link_url: link });
+        for (const file of files) {
+            const key = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+            const path = `gallery/${categoryId}/${key}.${GALLERY_TYPES[file.type]}`;
+            const thumbPath = `gallery/${categoryId}/thumbs/${key}.jpg`;
+            const thumb = await window.createGalleryThumbnail(file);
+            await window.BuhloSupabase.uploadStorageFile(path, file);
+            uploadedPaths.push(path);
+            await window.BuhloSupabase.uploadStorageFile(thumbPath, thumb);
+            uploadedPaths.push(thumbPath);
+            await window.BuhloSupabase.addGalleryPhoto({
+                category_id: categoryId,
+                path,
+                thumb_path: thumbPath,
+                caption: title.slice(0, 200),
+                info_post_id: post.id
+            });
+        }
+        ['info-title', 'info-body', 'info-link', 'info-files'].forEach(id => { document.getElementById(id).value = ''; });
+        await loadAdminInfo();
+        setInfoStatus('Запись опубликована.');
+    } catch (error) {
+        // Каскад удалит фото-строки; файлы убираем отдельно
+        if (post) await window.BuhloSupabase.deleteInfoPost(post.id).catch(() => {});
+        await window.BuhloSupabase.deleteStorageFiles(uploadedPaths).catch(() => {});
+        setInfoStatus(`Не удалось опубликовать: ${error.message}`, true);
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function deleteInfoPostAdmin(index) {
+    const post = appInfoPosts[index];
+    if (!post) return;
+    if (!confirm(`Удалить запись «${post.title}» вместе с картинками?`)) return;
+    try {
+        await window.BuhloSupabase.deleteInfoPost(post.id);
+        await loadAdminInfo();
+        setInfoStatus('Запись удалена.');
+    } catch (error) {
+        setInfoStatus(`Не удалось удалить: ${error.message}`, true);
     }
 }

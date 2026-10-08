@@ -393,6 +393,47 @@
         return rows[0];
     }
 
+    const INFO_EDITOR_EMAIL = 'ssdavidchuk@gmail.com';
+
+    async function getInfoPosts() {
+        const [posts, photos] = await Promise.all([
+            request('info_posts?select=id,title,body,link_url,created_at&order=created_at.desc,id.desc'),
+            request('gallery_photos?select=id,path,thumb_path,info_post_id&info_post_id=not.is.null&order=id.asc')
+        ]);
+        return (posts || []).map(post => ({
+            ...post,
+            photos: (photos || []).filter(photo => photo.info_post_id === post.id)
+        }));
+    }
+
+    async function getInfoCategoryId() {
+        const rows = await request(`gallery_categories?select=id&name=eq.${encodeURIComponent('Инфо от Сергеича')}`);
+        if (!rows?.length) throw new Error('Категория «Инфо от Сергеича» не найдена. Выполните schema.sql.');
+        return rows[0].id;
+    }
+
+    async function createInfoPost(post) {
+        const rows = await request('info_posts', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({ title: post.title, body: post.body || '', link_url: post.link_url || null })
+        }, true);
+        return rows[0];
+    }
+
+    async function deleteInfoPost(id) {
+        const photos = await request(`gallery_photos?select=path,thumb_path&info_post_id=eq.${encodeURIComponent(id)}`);
+        const deleted = await request(`info_posts?id=eq.${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' }
+        }, true);
+        if (!Array.isArray(deleted) || !deleted.length) {
+            throw new Error('база не удалила запись (нет прав или её уже нет)');
+        }
+        const files = (photos || []).flatMap(photo => [photo.path, photo.thumb_path]);
+        await deleteStorageFiles(files).catch(() => {});
+    }
+
     async function deleteGalleryPhoto(id) {
         const deleted = await request(`gallery_photos?id=eq.${encodeURIComponent(id)}`, {
             method: 'DELETE',
@@ -508,6 +549,7 @@
         },
         get configured() { return configured; },
         get isAdmin() { return isAdmin; },
+        get isInfoEditor() { return Boolean(isAdmin && authUser?.email?.toLowerCase() === INFO_EDITOR_EMAIL); },
         get isMemberAuthenticated() { return Boolean(accessToken && authUser?.id); },
         get authUser() { return authUser; },
         signUp: async function(email, password, username, signupTicket, redirectTo) {
@@ -628,6 +670,10 @@
         deleteGalleryCategory,
         addGalleryPhoto,
         createGalleryPhoto,
+        getInfoPosts,
+        getInfoCategoryId,
+        createInfoPost,
+        deleteInfoPost,
         deleteGalleryPhoto,
         uploadStorageFile,
         deleteStorageFiles,
