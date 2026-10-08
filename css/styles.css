@@ -225,6 +225,8 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 20px;
     padding: 15px 20px;
 }
 
@@ -239,15 +241,17 @@ header {
 
 .nav-links {
     display: flex;
-    gap: 20px;
+    gap: 10px 16px;
     list-style: none;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .nav-links a {
     color: var(--text-muted);
     text-decoration: none;
     font-size: 0.95rem;
+    white-space: nowrap;
     transition: all 0.2s;
 }
 
@@ -273,6 +277,7 @@ header {
 
 .nav-links .logout-link {
     width: auto;
+    white-space: nowrap;
     padding: 8px 14px;
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.4);
