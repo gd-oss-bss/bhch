@@ -240,11 +240,8 @@ async function uploadMemberGalleryPhotos() {
 window.addEventListener('load', () => {
     const redirect = new URLSearchParams(window.location.hash.slice(1));
     if (redirect.has('access_token') || redirect.has('refresh_token')) {
-        // Токены из ссылки подтверждения не сохраняем: убираем их из адреса, вход — вручную.
+        // Токены из ссылки не сохраняем: убираем их из адреса.
         history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
-        if (redirect.get('type') === 'signup') {
-            setMemberStatus('member-account-message', 'Email подтверждён. Теперь войдите в аккаунт.');
-        }
     }
 
     const forms = {
