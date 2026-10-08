@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Кабинет участника — БУХЛОЧАТ</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+    <header>
+        <nav class="nav-container">
+            <a href="../index.html" class="logo">БУХЛОЧАТ</a>
+            <ul class="nav-links">
+                <li><a href="../index.html">На главную</a></li>
+                <li id="member-logout-item" class="hidden"><button type="button" class="logout-link" onclick="logoutMember()">🚪 Выйти</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <section id="member-auth">
+            <h2>Кабинет участника</h2>
+            <p id="member-account-message" class="member-status" role="status" aria-live="polite">Войдите в аккаунт или зарегистрируйтесь, чтобы добавлять контент.</p>
+
+            <div id="member-login-form" class="member-form-grid">
+                <input type="email" id="member-email" autocomplete="email" placeholder="Email" />
+                <input type="password" id="member-password" autocomplete="current-password" placeholder="Пароль" />
+                <button type="button" onclick="loginMember()">Войти</button>
+                <button type="button" class="secondary-btn" onclick="toggleMemberSignup()">Регистрация</button>
+            </div>
+
+            <div id="member-signup" class="member-signup hidden">
+                <p class="member-help">Регистрация доступна только тем, кто знает ответ на контрольный вопрос. Заполните email и пароль выше, имя ниже и ответьте на вопрос.</p>
+                <p id="member-question" class="member-question">Загрузка вопроса…</p>
+                <input type="text" id="member-answer" autocomplete="off" placeholder="Ответ на контрольный вопрос" />
+                <input type="text" id="member-username" autocomplete="nickname" placeholder="Имя в хабе" maxlength="40" />
+                <button type="button" onclick="registerMember()">Создать аккаунт</button>
+                <p id="member-signup-status" class="member-status" role="status" aria-live="polite"></p>
+            </div>
+        </section>
+
+        <section id="member-contributions" class="hidden">
+            <h2>Добавить в хаб</h2>
+            <p id="member-session-name" class="member-status"></p>
+            <div class="member-contribution-grid">
+                <form id="member-event-form" class="member-form-card">
+                    <h3>Добавить событие</h3>
+                    <input type="text" id="member-event-title" placeholder="Название*" maxlength="120" required />
+                    <input type="date" id="member-event-date" required />
+                    <input type="time" id="member-event-time" />
+                    <input type="text" id="member-event-location" placeholder="Место" maxlength="240" />
+                    <textarea id="member-event-description" placeholder="Описание" maxlength="2000"></textarea>
+                    <label class="member-checkbox"><input type="checkbox" id="member-event-yearly" /> Повторять ежегодно</label>
+                    <label for="member-event-limit">Максимум участников</label>
+                    <input type="number" id="member-event-limit" value="30" min="1" max="500" required />
+                    <button type="submit">Опубликовать событие</button>
+                    <p id="member-event-status" class="member-status" role="status" aria-live="polite"></p>
+                </form>
+
+                <form id="member-holiday-form" class="member-form-card">
+                    <h3>Добавить праздник</h3>
+                    <input type="text" id="member-holiday-name" placeholder="Название*" maxlength="120" required />
+                    <label for="member-holiday-date">Дата ежегодного праздника (ММ-ДД)</label>
+                    <input type="text" id="member-holiday-date" placeholder="ММ-ДД" pattern="(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])" required />
+                    <label for="member-holiday-type">Тип</label>
+                    <select id="member-holiday-type">
+                        <option value="general">Общий праздник</option>
+                        <option value="moto">Мото-событие</option>
+                    </select>
+                    <button type="submit">Опубликовать праздник</button>
+                    <p id="member-holiday-status" class="member-status" role="status" aria-live="polite"></p>
+                </form>
+
+                <form id="member-category-form" class="member-form-card">
+                    <h3>Создать категорию фото</h3>
+                    <input type="text" id="member-category-name" placeholder="Название категории*" maxlength="60" required />
+                    <button type="submit">Создать категорию</button>
+                    <p id="member-category-status" class="member-status" role="status" aria-live="polite"></p>
+                </form>
+
+                <form id="member-photo-form" class="member-form-card">
+                    <h3>Загрузить фото</h3>
+                    <label for="member-photo-category">Категория</label>
+                    <select id="member-photo-category" required></select>
+                    <input type="text" id="member-photo-caption" placeholder="Подпись (необязательно)" maxlength="200" />
+                    <input type="file" id="member-photo-files" accept="image/jpeg,image/png,image/webp,image/gif" multiple required />
+                    <button type="submit">Загрузить фотографии</button>
+                    <p class="member-help">JPG, PNG, WebP или GIF до 10 МБ на файл.</p>
+                    <p id="member-photo-status" class="member-status" role="status" aria-live="polite"></p>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/gallery-utils.js"></script>
+    <script src="../js/member.js"></script>
+</body>
+</html>

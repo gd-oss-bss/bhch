@@ -58,6 +58,8 @@ body {
     text-align: center;
     max-width: 420px;
     width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 0 40px rgba(245, 158, 11, 0.2), 0 10px 30px rgba(0,0,0,0.6);
     animation: slideIn 0.5s ease-out;
 }
@@ -327,6 +329,96 @@ section h2 {
     padding-bottom: 10px;
 }
 
+.secondary-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    box-shadow: none;
+}
+
+.secondary-btn:hover {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--text-main);
+    box-shadow: none;
+}
+
+.member-signup {
+    margin-top: 16px;
+}
+
+.member-signup .member-status,
+.member-status {
+    min-height: 1.5em;
+    margin: 8px 0;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.member-status.error {
+    color: var(--danger);
+}
+
+.member-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 12px;
+    align-items: start;
+}
+
+.member-form-grid input,
+.member-signup input {
+    margin-bottom: 12px;
+}
+
+.member-signup button {
+    margin-bottom: 6px;
+}
+
+.member-contribution-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.member-form-card {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--soft);
+}
+
+.member-form-card h3 {
+    margin-bottom: 14px;
+    color: var(--accent);
+}
+
+.member-form-card label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+}
+
+.member-form-card .member-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.member-checkbox input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.member-help {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
 .gallery-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -520,6 +612,14 @@ body.lightbox-open {
 }
 
 @media (max-width: 600px) {
+    .member-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .member-form-card {
+        padding: 16px;
+    }
+
     .film-photo {
         width: 200px;
         height: 145px;
@@ -709,4 +809,10 @@ body.lightbox-open {
     .birthday-particle {
         animation: none;
     }
+}
+
+.member-question {
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 10px;
 }

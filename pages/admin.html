@@ -191,6 +191,15 @@
                 <h3>Фото галереи</h3>
                 <div id="gallery-photos-list" class="event-list"></div>
             </section>
+
+            <section class="panel">
+                <h3>Пользователи</h3>
+                <div class="admin-actions">
+                    <button type="button" class="info" onclick="loadAdminUsers()">🔄 Обновить список</button>
+                </div>
+                <div id="users-list" class="event-list"></div>
+                <div id="users-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
         </div>
     
         <div id="stats-view" class="dashboard hidden">
@@ -219,6 +228,7 @@
 
     <script src="../js/supabase-config.js"></script>
     <script src="../js/supabase.js"></script>
+    <script src="../js/gallery-utils.js"></script>
     <script src="../js/admin.js"></script>
     <script src="../js/stats.js"></script>
 </body>

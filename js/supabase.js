@@ -6,6 +6,7 @@
     let accessToken = '';
     let refreshToken = '';
     let isAdmin = false;
+    let authUser = null;
     const BACKUP_BUCKET = 'BHCH_DATA';
 
     function requireConfiguration() {
@@ -33,7 +34,9 @@
     async function refreshSession() {
         if (!refreshToken) {
             accessToken = '';
+            refreshToken = '';
             isAdmin = false;
+            authUser = null;
             throw new Error('Сессия истекла. Войдите снова.');
         }
         const session = await authRequest('token?grant_type=refresh_token', {
@@ -41,11 +44,13 @@
         });
         accessToken = session.access_token;
         refreshToken = session.refresh_token;
+        authUser = session.user || authUser;
+        isAdmin = authUser?.app_metadata?.role === 'admin';
     }
 
     async function request(path, options = {}, authenticated = false, canRefresh = true) {
         requireConfiguration();
-        if (authenticated && !accessToken) throw new Error('Сначала войдите в админку.');
+        if (authenticated && !accessToken) throw new Error('Сначала войдите в аккаунт.');
 
         const headers = {
             apikey: anonKey,
@@ -127,6 +132,24 @@
             name: row.name,
             event_type: row.event_type
         }));
+    }
+
+    async function createEvent(event) {
+        const rows = await request('events', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify(eventToRow(event))
+        }, true);
+        return eventFromRow(rows[0], []);
+    }
+
+    async function createHoliday(holiday) {
+        const rows = await request('holidays', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify(holiday)
+        }, true);
+        return rows[0];
     }
 
     async function replaceEvents(events) {
@@ -238,7 +261,7 @@
 
     async function storageRequest(path, options = {}, canRefresh = true) {
         requireConfiguration();
-        if (!accessToken) throw new Error('Сначала войдите в админку.');
+        if (!accessToken) throw new Error('Сначала войдите в аккаунт.');
         const response = await fetch(`${url}/storage/v1/${path}`, {
             ...options,
             headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, ...options.headers },
@@ -305,6 +328,15 @@
         }, true);
     }
 
+    async function createGalleryCategory(category) {
+        const rows = await request('gallery_categories', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({ name: category.name })
+        }, true);
+        return rows[0];
+    }
+
     async function deleteGalleryCategory(id) {
         const deleted = await request(`gallery_categories?id=eq.${encodeURIComponent(id)}`, {
             method: 'DELETE',
@@ -316,6 +348,15 @@
     }
 
     async function addGalleryPhoto(photo) {
+        const rows = await request('gallery_photos', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify(photo)
+        }, true);
+        return rows[0];
+    }
+
+    async function createGalleryPhoto(photo) {
         const rows = await request('gallery_photos', {
             method: 'POST',
             headers: { Prefer: 'return=representation' },
@@ -410,13 +451,50 @@
         return request('rpc/get_storage_stats', { method: 'POST', body: '{}' }, true);
     }
 
+    function setSession(session) {
+        accessToken = session.access_token;
+        refreshToken = session.refresh_token;
+        authUser = session.user || null;
+        isAdmin = authUser?.app_metadata?.role === 'admin';
+    }
+
     window.BuhloSupabase = {
         logSiteVisit,
         addEventRegistrations,
         getVisitStats,
         getStorageStats,
+        getUsers: async function() {
+            return request('rpc/admin_list_users', { method: 'POST', body: '{}' }, true);
+        },
+        deleteUser: async function(id) {
+            return request('rpc/admin_delete_user', {
+                method: 'POST',
+                body: JSON.stringify({ p_id: id })
+            }, true);
+        },
         get configured() { return configured; },
         get isAdmin() { return isAdmin; },
+        get isMemberAuthenticated() { return Boolean(accessToken && authUser?.id); },
+        get authUser() { return authUser; },
+        signUp: async function(email, password, username, signupTicket, redirectTo) {
+            const query = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : '';
+            return authRequest(`signup${query}`, {
+                email,
+                password,
+                data: { username, signup_ticket: signupTicket }
+            });
+        },
+        issueSignupTicket: async function(questionId, answer) {
+            return request('rpc/issue_signup_ticket', {
+                method: 'POST',
+                body: JSON.stringify({ p_id: questionId, p_answer: answer })
+            });
+        },
+        signInMember: async function(email, password) {
+            const session = await authRequest('token?grant_type=password', { email, password });
+            setSession(session);
+            return session.user;
+        },
         signIn: async function(email, password) {
             const session = await authRequest('token?grant_type=password', {
                 email,
@@ -425,14 +503,25 @@
             if (session.user?.app_metadata?.role !== 'admin') {
                 throw new Error('У этой учётной записи нет прав администратора.');
             }
-            accessToken = session.access_token;
-            refreshToken = session.refresh_token;
-            isAdmin = true;
+            setSession(session);
         },
         signOut: function() {
             accessToken = '';
             refreshToken = '';
             isAdmin = false;
+            authUser = null;
+        },
+        getMemberProfile: async function() {
+            if (!authUser?.id) throw new Error('Войдите в аккаунт участника.');
+            const rows = await request(
+                `user_profiles?id=eq.${encodeURIComponent(authUser.id)}&select=username,role`,
+                {},
+                true
+            );
+            if (!Array.isArray(rows) || !rows.length) {
+                throw new Error('Профиль не найден. Обратитесь к администратору.');
+            }
+            return rows[0];
         },
         changePassword: async function(password) {
             if (!accessToken || !isAdmin) throw new Error('Сначала войдите в админку.');
@@ -451,8 +540,10 @@
             }
         },
         getEvents,
+        createEvent,
         getBirthdays,
         getHolidays,
+        createHoliday,
         replaceEvents,
         saveEvent,
         deleteEvent,
@@ -462,9 +553,11 @@
         getGalleryCategories,
         getGalleryPhotos,
         getStorageBlobUrl,
+        createGalleryCategory,
         saveGalleryCategory,
         deleteGalleryCategory,
         addGalleryPhoto,
+        createGalleryPhoto,
         deleteGalleryPhoto,
         uploadStorageFile,
         deleteStorageFiles,

@@ -43,7 +43,7 @@ async function checkAdminLogin() {
         document.getElementById('admin-password').value = '';
         error.style.display = 'none';
         showDashboard();
-        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery()]);
+        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers()]);
     } catch (loginError) {
         error.textContent = /invalid_credentials/.test(loginError.message)
             ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
@@ -1099,19 +1099,6 @@ async function deleteGalleryCategory(id) {
     }
 }
 
-async function createGalleryThumbnail(file) {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 480 / bitmap.height, 640 / bitmap.width);
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-    if (!blob) throw new Error('не удалось создать превью');
-    return blob;
-}
-
 async function uploadGalleryPhotos() {
     const categoryId = Number(document.getElementById('gallery-upload-category').value);
     const caption = document.getElementById('gallery-upload-caption').value.trim();
@@ -1141,7 +1128,7 @@ async function uploadGalleryPhotos() {
             const key = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
             const path = `gallery/${categoryId}/${key}.${GALLERY_TYPES[file.type]}`;
             const thumbPath = `gallery/${categoryId}/thumbs/${key}.jpg`;
-            const thumb = await createGalleryThumbnail(file);
+            const thumb = await window.createGalleryThumbnail(file);
             await window.BuhloSupabase.uploadStorageFile(path, file);
             try {
                 await window.BuhloSupabase.uploadStorageFile(thumbPath, thumb);
@@ -1212,3 +1199,61 @@ window.onbeforeunload = function() {
     window.BuhloSupabase.signOut();
     isAdminAuthenticated = false;
 };
+
+let appUsers = [];
+
+function setUsersStatus(message, isError = false) {
+    const status = document.getElementById('users-status');
+    status.textContent = message;
+    status.classList.remove('hidden', 'error');
+    if (isError) status.classList.add('error');
+}
+
+async function loadAdminUsers() {
+    try {
+        appUsers = await window.BuhloSupabase.getUsers();
+        setUsersStatus(`Пользователей: ${appUsers.length}`);
+    } catch (error) {
+        appUsers = [];
+        setUsersStatus(`Не удалось загрузить пользователей: ${error.message}`, true);
+    }
+    renderAdminUsers();
+}
+
+function renderAdminUsers() {
+    const list = document.getElementById('users-list');
+    const formatDateTime = value => value ? new Date(value).toLocaleString('ru-RU') : '—';
+    list.innerHTML = appUsers.length
+        ? appUsers.map((user, index) => `
+            <div class="event-item">
+                <h4>${escapeHtml(user.username || '(без имени)')}</h4>
+                <div class="event-meta">
+                    <span class="tag">${escapeHtml(user.email || '—')}</span>
+                    <span class="tag">${user.role === 'admin' ? 'админ' : 'участник'}</span>
+                    <span class="tag">${user.email_confirmed ? 'email подтверждён' : 'email не подтверждён'}</span>
+                </div>
+                <div class="event-meta">
+                    <span class="tag">Регистрация: ${formatDateTime(user.created_at)}</span>
+                    <span class="tag">Последний вход: ${formatDateTime(user.last_sign_in_at)}</span>
+                </div>
+                <div class="event-actions">
+                    ${user.role === 'admin' ? '' : `<button type="button" class="danger" onclick="deleteAdminUser(${index})">Удалить</button>`}
+                </div>
+            </div>
+        `).join('')
+        : '<div class="empty">Пользователей пока нет.</div>';
+}
+
+async function deleteAdminUser(index) {
+    const user = appUsers[index];
+    if (!user) return;
+    if (!confirm(`Удалить пользователя «${user.username || user.email}»? Он больше не сможет войти.`)) return;
+    try {
+        await window.BuhloSupabase.deleteUser(user.id);
+        setUsersStatus('Пользователь удалён.');
+        await loadAdminUsers();
+        setUsersStatus('Пользователь удалён.');
+    } catch (error) {
+        setUsersStatus(`Не удалось удалить: ${error.message}`, true);
+    }
+}
