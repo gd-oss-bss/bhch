@@ -1237,11 +1237,31 @@ function renderAdminUsers() {
                     <span class="tag">Последний вход: ${formatDateTime(user.last_sign_in_at)}</span>
                 </div>
                 <div class="event-actions">
+                    <button type="button" onclick="renameAdminUser(${index})">Изменить имя</button>
                     ${user.role === 'admin' ? '' : `<button type="button" class="danger" onclick="deleteAdminUser(${index})">Удалить</button>`}
                 </div>
             </div>
         `).join('')
         : '<div class="empty">Пользователей пока нет.</div>';
+}
+
+async function renameAdminUser(index) {
+    const user = appUsers[index];
+    if (!user) return;
+    const input = prompt('Новое имя пользователя (2–40 символов):', user.username || '');
+    if (input === null) return;
+    const username = input.trim();
+    if (username.length < 2 || username.length > 40) {
+        setUsersStatus('Имя — от 2 до 40 символов.', true);
+        return;
+    }
+    try {
+        await window.BuhloSupabase.renameUser(user.id, username);
+        await loadAdminUsers();
+        setUsersStatus('Имя изменено.');
+    } catch (error) {
+        setUsersStatus(`Не удалось изменить имя: ${error.message}`, true);
+    }
 }
 
 async function deleteAdminUser(index) {

@@ -466,6 +466,12 @@
         getUsers: async function() {
             return request('rpc/admin_list_users', { method: 'POST', body: '{}' }, true);
         },
+        renameUser: async function(id, username) {
+            return request('rpc/admin_rename_user', {
+                method: 'POST',
+                body: JSON.stringify({ p_id: id, p_username: username })
+            }, true);
+        },
         deleteUser: async function(id) {
             return request('rpc/admin_delete_user', {
                 method: 'POST',

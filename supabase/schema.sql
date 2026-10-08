@@ -823,6 +823,34 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.admin_rename_user(p_id uuid, p_username text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    new_name text := btrim(coalesce(p_username, ''));
+BEGIN
+    IF NOT public.is_buhlo_admin() THEN
+        RAISE EXCEPTION 'Недостаточно прав';
+    END IF;
+    IF char_length(new_name) NOT BETWEEN 2 AND 40 THEN
+        RAISE EXCEPTION 'Имя — от 2 до 40 символов';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.user_profiles WHERE username = new_name AND id <> p_id) THEN
+        RAISE EXCEPTION 'Такое имя уже занято';
+    END IF;
+    UPDATE public.user_profiles SET username = new_name WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Пользователь не найден';
+    END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_rename_user(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_rename_user(uuid, text) TO authenticated;
+
 REVOKE ALL ON FUNCTION public.admin_list_users() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_delete_user(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
