@@ -96,10 +96,7 @@ async function registerMember() {
         loadMemberCategories();
         loadMemberEvents();
     } catch (error) {
-        const message = /Database error saving new user/i.test(error.message)
-            ? 'Регистрация отклонена: ответ устарел или уже использован. Повторите.'
-            : error.message;
-        setMemberStatus(statusId, `Ошибка регистрации: ${message}`, true);
+        setMemberStatus(statusId, `Ошибка регистрации: ${error.message}`, true);
     }
 }
 
