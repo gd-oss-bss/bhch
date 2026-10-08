@@ -54,15 +54,10 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'events_recurrence_check'
-          AND conrelid = 'public.events'::regclass
-    ) THEN
-        ALTER TABLE public.events
-            ADD CONSTRAINT events_recurrence_check
-            CHECK (recurrence IS NULL OR recurrence = 'yearly');
-    END IF;
+    ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_recurrence_check;
+    ALTER TABLE public.events
+        ADD CONSTRAINT events_recurrence_check
+        CHECK (recurrence IS NULL OR recurrence IN ('daily', 'weekly', 'monthly', 'yearly'));
 END
 $$;
 
@@ -345,7 +340,7 @@ CREATE POLICY "Members add events"
         AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
         AND length(coalesce(location, '')) <= 240
         AND length(coalesce(description, '')) <= 2000
-        AND (recurrence IS NULL OR recurrence = 'yearly')
+        AND (recurrence IS NULL OR recurrence IN ('daily', 'weekly', 'monthly', 'yearly'))
         AND "maxParticipants" BETWEEN 1 AND 500
     );
 

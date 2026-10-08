@@ -2,6 +2,8 @@ const EVENTS_KEY = 'buhlo_events_data';
 const BIRTHDAYS_DRAFT_KEY = 'buhlo_birthdays_admin_draft';
 const HOLIDAYS_DRAFT_KEY = 'buhlo_holidays_admin_draft';
 
+const RECURRENCE_LABELS = { daily: 'Ежедневно', weekly: 'Еженедельно', monthly: 'Ежемесячно', yearly: 'Ежегодно' };
+
 let appEvents = [];
 let appBirthdays = [];
 let appHolidays = [];
@@ -604,7 +606,7 @@ function renderEvents() {
                 <p>${escapeHtml(event.description || 'Описание отсутствует')}</p>
                 <div class="event-meta">
                     <span class="tag">${event.date ? formatDate(event.date) : 'Дата не указана'}</span>
-                    ${event.recurrence === 'yearly' ? '<span class="tag">Ежегодно</span>' : ''}
+                    ${RECURRENCE_LABELS[event.recurrence] ? `<span class="tag">${RECURRENCE_LABELS[event.recurrence]}</span>` : ''}
                     <span class="tag">${escapeHtml(event.time || 'Время не указано')}</span>
                     <span class="tag">${renderEventLocation(event.location || 'Место не указано')}</span>
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
@@ -634,7 +636,7 @@ function formatDate(dateString) {
 async function saveEvent() {
     const title = document.getElementById('event-title').value.trim();
     const date = document.getElementById('event-date').value;
-    const recurrence = document.getElementById('event-yearly').checked ? 'yearly' : undefined;
+    const recurrence = document.getElementById('event-recurrence').value || undefined;
     const time = document.getElementById('event-time').value;
     const location = document.getElementById('event-location').value.trim();
     const description = document.getElementById('event-description').value.trim();
@@ -679,7 +681,7 @@ function editEvent(eventId) {
     editingEventId = eventId;
     document.getElementById('event-title').value = event.title || '';
     document.getElementById('event-date').value = event.date || '';
-    document.getElementById('event-yearly').checked = event.recurrence === 'yearly';
+    document.getElementById('event-recurrence').value = RECURRENCE_LABELS[event.recurrence] ? event.recurrence : '';
     document.getElementById('event-time').value = event.time || '';
     document.getElementById('event-location').value = event.location || '';
     document.getElementById('event-description').value = event.description || '';
@@ -732,7 +734,7 @@ function resetForm() {
     editingEventId = null;
     document.getElementById('event-title').value = '';
     document.getElementById('event-date').value = '';
-    document.getElementById('event-yearly').checked = false;
+    document.getElementById('event-recurrence').value = '';
     document.getElementById('event-time').value = '';
     document.getElementById('event-location').value = '';
     document.getElementById('event-description').value = '';

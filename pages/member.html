@@ -50,7 +50,14 @@
                     <input type="time" id="member-event-time" />
                     <input type="text" id="member-event-location" placeholder="Место" maxlength="240" />
                     <textarea id="member-event-description" placeholder="Описание" maxlength="2000"></textarea>
-                    <label class="member-checkbox"><input type="checkbox" id="member-event-yearly" /> Повторять ежегодно</label>
+                    <label for="member-event-recurrence">Повторение</label>
+                    <select id="member-event-recurrence">
+                        <option value="">Не повторять</option>
+                        <option value="daily">Ежедневно</option>
+                        <option value="weekly">Еженедельно</option>
+                        <option value="monthly">Ежемесячно</option>
+                        <option value="yearly">Ежегодно</option>
+                    </select>
                     <label for="member-event-limit">Максимум участников</label>
                     <input type="number" id="member-event-limit" value="30" min="1" max="500" required />
                     <button type="submit">Опубликовать событие</button>

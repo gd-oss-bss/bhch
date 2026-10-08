@@ -44,10 +44,14 @@
                 <h3 id="event-form-title">Добавить событие</h3>
                 <input type="text" id="event-title" placeholder="Название события" />
                 <input type="date" id="event-date" />
-                <label class="event-recurrence">
-                    <input type="checkbox" id="event-yearly" />
-                    Повторять ежегодно
-                </label>
+                <label class="event-recurrence" for="event-recurrence">Повторение</label>
+                <select id="event-recurrence">
+                    <option value="">Не повторять</option>
+                    <option value="daily">Ежедневно</option>
+                    <option value="weekly">Еженедельно</option>
+                    <option value="monthly">Ежемесячно</option>
+                    <option value="yearly">Ежегодно</option>
+                </select>
                 <input type="time" id="event-time" />
                 <input type="text" id="event-location" placeholder="Место или ссылка на карту" />
                 <textarea id="event-description" placeholder="Описание события"></textarea>

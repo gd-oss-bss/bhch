@@ -148,7 +148,7 @@ async function createMemberEvent() {
             time: document.getElementById('member-event-time').value,
             location: document.getElementById('member-event-location').value.trim(),
             description: document.getElementById('member-event-description').value.trim(),
-            recurrence: document.getElementById('member-event-yearly').checked ? 'yearly' : undefined,
+            recurrence: document.getElementById('member-event-recurrence').value || undefined,
             maxParticipants
         });
         document.getElementById('member-event-form').reset();
