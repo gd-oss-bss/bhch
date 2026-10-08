@@ -1049,7 +1049,7 @@ CREATE POLICY "Members upload gallery images"
                 THEN EXISTS (
                     SELECT 1
                     FROM public.gallery_categories AS category
-                    WHERE category.id = ((storage.foldername(name))[2])::bigint
+                    WHERE category.id = ((storage.foldername(storage.objects.name))[2])::bigint
                 )
             ELSE false
         END
