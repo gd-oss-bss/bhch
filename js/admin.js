@@ -22,6 +22,15 @@ function showDashboard() {
     document.getElementById('auth-block').classList.add('hidden');
     document.getElementById('topbar').classList.remove('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    applyInfoOnlyMode();
+}
+
+function applyInfoOnlyMode() {
+    const infoOnly = !!window.BuhloSupabase.isInfoEditor;
+    document.querySelectorAll('#dashboard > .panel').forEach(panel => {
+        panel.classList.toggle('hidden', infoOnly && panel.id !== 'info-panel');
+    });
+    document.getElementById('view-toggle').classList.toggle('hidden', infoOnly);
 }
 
 function showAuth() {
@@ -45,7 +54,9 @@ async function checkAdminLogin() {
         document.getElementById('admin-password').value = '';
         error.style.display = 'none';
         showDashboard();
-        await Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]);
+        await (window.BuhloSupabase.isInfoEditor
+            ? loadAdminInfo()
+            : Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]));
     } catch (loginError) {
         error.textContent = /invalid_credentials/.test(loginError.message)
             ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
