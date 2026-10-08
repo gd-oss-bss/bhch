@@ -58,7 +58,7 @@ async function checkAdminLogin() {
             ? loadAdminInfo()
             : Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]));
     } catch (loginError) {
-        error.textContent = /invalid_credentials/.test(loginError.message)
+        error.textContent = loginError.code === 'invalid_credentials'
             ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
             : loginError.message;
         error.style.display = 'block';
@@ -1072,7 +1072,7 @@ async function saveGalleryCategory() {
         await loadAdminGallery();
         setGalleryCategoryStatus('Категория сохранена в Supabase.');
     } catch (error) {
-        const duplicate = /23505|duplicate/i.test(error.message);
+        const duplicate = error.code === '23505';
         setGalleryCategoryStatus(duplicate ? 'Категория с таким названием уже есть.' : `Не удалось сохранить категорию: ${error.message}`, true);
     }
 }

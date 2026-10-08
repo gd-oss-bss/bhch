@@ -41,18 +41,64 @@
         }
     }
 
+    class SupabaseError extends Error {
+        constructor(message, { status = 0, code = '', detail = '' } = {}) {
+            super(message);
+            this.name = 'SupabaseError';
+            this.status = status;
+            this.code = code;
+            this.detail = detail;
+        }
+    }
+
+    // Превращает ответ сервера в понятное сообщение; исходный текст остаётся в error.detail.
+    function makeHttpError(source, status, detail) {
+        let data = {};
+        try { data = JSON.parse(detail) || {}; } catch (parseError) { data = {}; }
+        const code = String(data.error_code || (typeof data.code === 'string' ? data.code : '') || data.statusCode || status || '');
+        const raw = `${data.msg || ''} ${data.message || ''} ${data.error_description || ''} ${data.error || ''} ${detail || ''}`;
+        let message;
+        if (code === 'over_email_send_rate_limit') message = 'Превышен лимит отправки писем. Попробуйте позже.';
+        else if (code === 'over_request_rate_limit' || status === 429) message = 'Слишком много запросов. Подождите немного и повторите.';
+        else if (code === 'invalid_credentials') message = 'Неверный email или пароль.';
+        else if (code === 'email_not_confirmed') message = 'Email не подтверждён.';
+        else if (code === 'weak_password') message = 'Пароль слишком простой. Используйте не менее 6 символов.';
+        else if (/user_already_exists|email_exists|already registered/i.test(raw)) message = 'Пользователь с таким email уже зарегистрирован.';
+        else if (/Database error saving new user/i.test(raw)) message = 'Регистрация отклонена: ответ на контрольный вопрос устарел или уже использован. Повторите.';
+        else if (/category_not_empty/i.test(raw)) message = 'В категории есть фото. Сначала удалите их.';
+        else if (code === '23505' || status === 409) message = 'Такая запись уже существует.';
+        else if (code === '23503') message = 'Запись связана с другими данными и не может быть изменена или удалена.';
+        else if (code === '23514' || code === '22001' || code === '23502') message = 'Данные не прошли проверку: пустое, слишком длинное или недопустимое значение.';
+        else if (code === '42501' || status === 403 || /row-level security|permission denied/i.test(raw)) message = 'Недостаточно прав для этого действия.';
+        else if (status === 401) message = 'Сессия истекла. Войдите заново.';
+        else if (status === 404) message = 'Не найдено (возможно, уже удалено).';
+        else if (status === 413) message = 'Файл слишком большой.';
+        else if (status >= 500) message = 'Сервер Supabase временно недоступен. Попробуйте позже.';
+        else if (source === 'storage' && status === 400) message = 'Хранилище отклонило файл. Проверьте тип и размер файла.';
+        else if (source === 'auth') message = 'Не удалось выполнить вход или регистрацию. Проверьте введённые данные.';
+        else message = `Сервер не принял запрос (код ${status}).`;
+        return new SupabaseError(message, { status, code, detail });
+    }
+
+    async function apiFetch(resource, options) {
+        try {
+            return await fetch(resource, options);
+        } catch (networkError) {
+            throw new SupabaseError('Нет связи с сервером. Проверьте интернет и повторите.', { detail: networkError.message });
+        }
+    }
     async function authRequest(path, body, token) {
         requireConfiguration();
         const headers = { apikey: anonKey, 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const response = await fetch(`${url}/auth/v1/${path}`, {
+        const response = await apiFetch(`${url}/auth/v1/${path}`, {
             method: 'POST',
             headers,
             body: JSON.stringify(body)
         });
         if (!response.ok) {
             const detail = await response.text();
-            throw new Error(`Supabase Auth HTTP ${response.status}: ${detail}`);
+            throw makeHttpError('auth', response.status, detail);
         }
         return response.json();
     }
@@ -86,7 +132,7 @@
             ...options.headers
         };
         if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-        const response = await fetch(`${url}/rest/v1/${path}`, {
+        const response = await apiFetch(`${url}/rest/v1/${path}`, {
             ...options,
             headers,
             cache: 'no-store'
@@ -98,7 +144,7 @@
         }
         if (!response.ok) {
             const detail = await response.text();
-            throw new Error(`Supabase HTTP ${response.status}: ${detail}`);
+            throw makeHttpError('rest', response.status, detail);
         }
         if (response.status === 204) return null;
         const text = await response.text();
@@ -290,7 +336,7 @@
     async function storageRequest(path, options = {}, canRefresh = true) {
         requireConfiguration();
         if (!accessToken) throw new Error('Сначала войдите в аккаунт.');
-        const response = await fetch(`${url}/storage/v1/${path}`, {
+        const response = await apiFetch(`${url}/storage/v1/${path}`, {
             ...options,
             headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, ...options.headers },
             cache: 'no-store'
@@ -303,7 +349,7 @@
             }
         }
         if (!response.ok) {
-            throw new Error(`Supabase Storage HTTP ${response.status}: ${await response.text()}`);
+            throw makeHttpError('storage', response.status, await response.text());
         }
         return response;
     }
@@ -333,10 +379,10 @@
         requireConfiguration();
         const token = accessToken || anonKey;
         const encoded = path.split('/').map(encodeURIComponent).join('/');
-        const response = await fetch(`${url}/storage/v1/object/authenticated/${BACKUP_BUCKET}/${encoded}`, {
+        const response = await apiFetch(`${url}/storage/v1/object/authenticated/${BACKUP_BUCKET}/${encoded}`, {
             headers: { apikey: anonKey, Authorization: `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error(`Файл ${path}: HTTP ${response.status}`);
+        if (!response.ok) throw makeHttpError('storage', response.status, '');
         return URL.createObjectURL(await response.blob());
     }
 
@@ -656,7 +702,7 @@
         },
         changePassword: async function(password) {
             if (!accessToken || !isAdmin) throw new Error('Сначала войдите в админку.');
-            const response = await fetch(`${url}/auth/v1/user`, {
+            const response = await apiFetch(`${url}/auth/v1/user`, {
                 method: 'PUT',
                 headers: {
                     apikey: anonKey,
@@ -667,7 +713,7 @@
             });
             if (!response.ok) {
                 const detail = await response.text();
-                throw new Error(`Supabase Auth HTTP ${response.status}: ${detail}`);
+                throw makeHttpError('auth', response.status, detail);
             }
         },
         getEvents,
