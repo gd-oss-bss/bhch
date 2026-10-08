@@ -906,3 +906,33 @@ body.lightbox-open {
     width: 160px;
     height: 90px;
 }
+
+.info-post-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.info-post-actions .info-post-toggle {
+    margin-top: 0;
+}
+
+.info-like {
+    width: auto;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.info-like.liked {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(245, 158, 11, 0.15);
+}

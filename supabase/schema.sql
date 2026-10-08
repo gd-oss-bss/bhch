@@ -1082,6 +1082,48 @@ DROP POLICY IF EXISTS "Admins delete info posts" ON public.info_posts;
 CREATE POLICY "Admins delete info posts"
     ON public.info_posts FOR DELETE TO authenticated USING (public.is_buhlo_admin());
 
+-- Likes (🍾) for info posts: only signed-in members/admins can like; names are readable
+-- by everyone through get_info_likes() (profiles themselves stay private).
+CREATE TABLE IF NOT EXISTS public.info_post_likes (
+    post_id bigint NOT NULL REFERENCES public.info_posts (id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (post_id, user_id)
+);
+
+ALTER TABLE public.info_post_likes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.info_post_likes FROM anon, authenticated;
+GRANT SELECT, INSERT, DELETE ON public.info_post_likes TO authenticated;
+
+DROP POLICY IF EXISTS "Users read own info likes" ON public.info_post_likes;
+CREATE POLICY "Users read own info likes"
+    ON public.info_post_likes FOR SELECT TO authenticated
+    USING (user_id = (SELECT auth.uid()));
+DROP POLICY IF EXISTS "Users add own info likes" ON public.info_post_likes;
+CREATE POLICY "Users add own info likes"
+    ON public.info_post_likes FOR INSERT TO authenticated
+    WITH CHECK (user_id = (SELECT auth.uid()));
+DROP POLICY IF EXISTS "Users remove own info likes" ON public.info_post_likes;
+CREATE POLICY "Users remove own info likes"
+    ON public.info_post_likes FOR DELETE TO authenticated
+    USING (user_id = (SELECT auth.uid()));
+
+CREATE OR REPLACE FUNCTION public.get_info_likes()
+RETURNS TABLE (post_id bigint, user_id uuid, username text, created_at timestamptz)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT likes.post_id, likes.user_id,
+           coalesce(nullif(btrim(profiles.username), ''), 'Участник'),
+           likes.created_at
+    FROM public.info_post_likes AS likes
+    LEFT JOIN public.user_profiles AS profiles ON profiles.id = likes.user_id
+    ORDER BY likes.created_at;
+$$;
+REVOKE ALL ON FUNCTION public.get_info_likes() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_info_likes() TO anon, authenticated;
 -- Rename the legacy category (kept so existing photos stay linked).
 UPDATE public.gallery_categories SET name = '🍉Инфо от Арбузика🍉'
 WHERE name = 'Инфо от Сергеича'

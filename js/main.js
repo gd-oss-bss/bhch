@@ -176,7 +176,7 @@ window.onload = async function() {
 
     isAuthenticated = localStorage.getItem(HUB_AUTH_KEY) === 'true';
     if (isAuthenticated) {
-        restoreMemberAccess().then(restored => { if (restored) renderEvents(); });
+        restoreMemberAccess().then(restored => { if (restored) { renderEvents(); if (infoPosts.length) renderInfoPosts(); } });
     } else {
         isAuthenticated = await restoreMemberAccess();
     }
@@ -590,6 +590,7 @@ function renderGallery() {
 
 let infoPosts = [];
 let infoShowAll = false;
+let infoLikes = [];
 const INFO_POSTS_LIMIT = 3;
 
 function safeExternalUrl(value) {
@@ -606,6 +607,7 @@ async function loadInfoPosts() {
     if (!container || !window.BuhloSupabase?.configured) return;
     try {
         infoPosts = await window.BuhloSupabase.getInfoPosts();
+        infoLikes = await window.BuhloSupabase.getInfoLikes().catch(() => []);
     } catch (error) {
         console.warn('🍉Инфо от Арбузика🍉 недоступно:', error.message);
         container.innerHTML = '<p class="muted-message">Не удалось загрузить информацию.</p>';
@@ -636,7 +638,10 @@ function renderInfoPosts() {
                         <img alt="${escapeHtml(post.title)}" data-path="${escapeHtml(photo.thumb_path || photo.path)}" onclick="openInfoPhoto(${postIndex}, ${photoIndex})" />
                     `).join('')}</div>` : ''}
                 </div>
-                <button type="button" class="info-post-toggle hidden" onclick="toggleInfoPost(this)">Развернуть ▾</button>
+                <div class="info-post-actions">
+                    <button type="button" class="info-post-toggle hidden" onclick="toggleInfoPost(this)">Развернуть ▾</button>
+                    ${renderInfoLike(post)}
+                </div>
             </article>`;
     }).join('') + (infoPosts.length > INFO_POSTS_LIMIT
         ? `<button type="button" class="info-posts-more" onclick="toggleInfoPosts()">${infoShowAll ? 'Показать меньше ▴' : `Показать все записи (${infoPosts.length}) ▾`}</button>`
@@ -658,6 +663,32 @@ function renderInfoPosts() {
             image.classList.add('info-image-error');
         }
     });
+}
+
+function renderInfoLike(post) {
+    const likes = infoLikes.filter(like => like.post_id === post.id);
+    const myId = window.BuhloSupabase.authUser?.id;
+    const mine = Boolean(myId) && likes.some(like => like.user_id === myId);
+    const names = likes.map(like => like.username).join(', ');
+    const title = likes.length ? `🍾 ${names}` : 'Пока никто не поставил 🍾';
+    return `<button type="button" class="info-like${mine ? ' liked' : ''}" title="${escapeHtml(title)}" aria-pressed="${mine}" onclick="toggleInfoLike(${post.id})">🍾 <span>${likes.length}</span></button>`;
+}
+
+async function toggleInfoLike(postId) {
+    const api = window.BuhloSupabase;
+    if (!api.isMemberAuthenticated) {
+        alert('Чтобы поставить 🍾, войдите в личный кабинет.');
+        return;
+    }
+    const mine = infoLikes.some(like => like.post_id === postId && like.user_id === api.authUser.id);
+    try {
+        await api.setInfoLike(postId, !mine);
+        infoLikes = await api.getInfoLikes();
+    } catch (error) {
+        alert(`Не удалось сохранить 🍾: ${error.message}`);
+        return;
+    }
+    renderInfoPosts();
 }
 
 function toggleInfoPost(button) {

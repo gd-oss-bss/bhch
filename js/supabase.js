@@ -406,6 +406,25 @@
         }));
     }
 
+    async function getInfoLikes() {
+        const rows = await request('rpc/get_info_likes', { method: 'POST', body: '{}' }, accessToken ? true : false);
+        return rows || [];
+    }
+
+    async function setInfoLike(postId, liked) {
+        if (!authUser?.id) throw new Error('Войдите в личный кабинет, чтобы ставить 🍾.');
+        if (liked) {
+            await request('info_post_likes', {
+                method: 'POST',
+                headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+                body: JSON.stringify({ post_id: postId, user_id: authUser.id })
+            }, true);
+        } else {
+            await request(`info_post_likes?post_id=eq.${encodeURIComponent(postId)}&user_id=eq.${encodeURIComponent(authUser.id)}`, {
+                method: 'DELETE'
+            }, true);
+        }
+    }
     async function getInfoCategoryId() {
         const rows = await request(`gallery_categories?select=id&name=eq.${encodeURIComponent('🍉Инфо от Арбузика🍉')}`);
         if (!rows?.length) throw new Error('Категория «🍉Инфо от Арбузика🍉» не найдена. Выполните schema.sql.');
@@ -671,6 +690,8 @@
         addGalleryPhoto,
         createGalleryPhoto,
         getInfoPosts,
+        getInfoLikes,
+        setInfoLike,
         getInfoCategoryId,
         createInfoPost,
         deleteInfoPost,
