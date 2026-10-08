@@ -32,7 +32,7 @@ let hubMemberName = '';
 
 function showMemberInNav() {
     const link = document.getElementById('member-nav-link');
-    if (link) link.textContent = hubMemberName ? `👤 ${hubMemberName}` : '👤 Кабинет';
+    if (link) link.title = hubMemberName ? `Вы вошли как ${hubMemberName}` : 'Личный кабинет участника';
 }
 
 // Участник с активной сессией уже прошёл контрольный вопрос при регистрации — повторно не спрашиваем.
@@ -235,6 +235,7 @@ function initPage() {
     loadBirthdays();
     loadHolidays();
     loadGallery();
+    loadInfoPosts();
     trackSiteVisit();
     scheduleEventRefresh();
     if (!visibilityListenerAdded) {
@@ -585,6 +586,67 @@ function renderGallery() {
     } else {
         images.forEach(loadThumb);
     }
+}
+
+let infoPosts = [];
+
+function safeExternalUrl(value) {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+async function loadInfoPosts() {
+    const container = document.getElementById('info-posts');
+    if (!container || !window.BuhloSupabase?.configured) return;
+    try {
+        infoPosts = await window.BuhloSupabase.getInfoPosts();
+    } catch (error) {
+        console.warn('Инфо от Сергеича недоступно:', error.message);
+        container.innerHTML = '<p class="muted-message">Не удалось загрузить информацию.</p>';
+        return;
+    }
+    renderInfoPosts();
+}
+
+function renderInfoPosts() {
+    const container = document.getElementById('info-posts');
+    container.querySelectorAll('img[data-blob]').forEach(image => URL.revokeObjectURL(image.dataset.blob));
+    if (!infoPosts.length) {
+        container.innerHTML = '<p class="muted-message">Пока ничего нет.</p>';
+        return;
+    }
+    container.innerHTML = infoPosts.map((post, postIndex) => {
+        const link = safeExternalUrl(post.link_url || '');
+        return `
+            <article class="info-post">
+                <h3>${escapeHtml(post.title)}</h3>
+                <span class="info-post-date">${formatDate(post.created_at.slice(0, 10))}</span>
+                ${post.body ? `<p class="info-post-body">${escapeHtml(post.body)}</p>` : ''}
+                ${link ? `<a class="info-post-link" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">🔗 Открыть ссылку</a>` : ''}
+                ${post.photos.length ? `<div class="info-post-images">${post.photos.map((photo, photoIndex) => `
+                    <img alt="${escapeHtml(post.title)}" data-path="${escapeHtml(photo.thumb_path || photo.path)}" onclick="openInfoPhoto(${postIndex}, ${photoIndex})" />
+                `).join('')}</div>` : ''}
+            </article>`;
+    }).join('');
+    container.querySelectorAll('img[data-path]').forEach(async image => {
+        try {
+            image.src = await window.BuhloSupabase.getStorageBlobUrl(image.dataset.path);
+            image.dataset.blob = image.src;
+        } catch (error) {
+            image.classList.add('info-image-error');
+        }
+    });
+}
+
+function openInfoPhoto(postIndex, photoIndex) {
+    const post = infoPosts[postIndex];
+    if (!post) return;
+    galleryVisible = post.photos.map(photo => ({ path: photo.path, caption: post.title }));
+    openGalleryPhoto(photoIndex);
 }
 
 function selectGalleryCategory(id) {

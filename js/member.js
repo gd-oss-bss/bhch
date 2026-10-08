@@ -39,7 +39,8 @@ function updateMemberPanel(profile = null) {
 async function loadMemberCategories() {
     const select = document.getElementById('member-photo-category');
     try {
-        const categories = await window.BuhloSupabase.getGalleryCategories();
+        const categories = (await window.BuhloSupabase.getGalleryCategories())
+            .filter(category => category.name !== 'Инфо от Сергеича');
         select.innerHTML = categories.length
             ? categories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join('')
             : '<option value="">Сначала создайте категорию</option>';
