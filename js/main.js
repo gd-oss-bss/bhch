@@ -105,6 +105,10 @@ function goToAdmin() {
     window.location.href = 'pages/admin.html';
 }
 
+function goToMember() {
+    window.location.href = 'pages/member.html';
+}
+
 // Форматирование даты из YYYY-MM-DD в DD.MM.YYYY
 function formatDateDisplay(dateString) {
     if (!dateString) return '';

@@ -191,6 +191,83 @@ AS $$
     SELECT coalesce(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', false);
 $$;
 
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
+    username text UNIQUE,
+    role text NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.user_profiles'::regclass
+          AND conname = 'user_profiles_username_length'
+    ) THEN
+        ALTER TABLE public.user_profiles
+            ADD CONSTRAINT user_profiles_username_length
+            CHECK (username IS NULL OR char_length(btrim(username)) BETWEEN 2 AND 40)
+            NOT VALID;
+    END IF;
+END
+$$;
+
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.user_profiles FROM anon, authenticated;
+GRANT SELECT ON public.user_profiles TO authenticated;
+
+DO $$
+DECLARE
+    old_policy record;
+BEGIN
+    FOR old_policy IN
+        SELECT policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'user_profiles'
+    LOOP
+        EXECUTE format('DROP POLICY %I ON public.user_profiles', old_policy.policyname);
+    END LOOP;
+END
+$$;
+
+CREATE POLICY "Users read own profile"
+    ON public.user_profiles FOR SELECT TO authenticated
+    USING (id = (SELECT auth.uid()));
+
+INSERT INTO public.user_profiles (id, role)
+SELECT
+    users.id,
+    CASE WHEN users.raw_app_meta_data ->> 'role' = 'admin' THEN 'admin' ELSE 'user' END
+FROM auth.users AS users
+ON CONFLICT (id) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.create_user_profile()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.user_profiles (id, username, role)
+    VALUES (
+        NEW.id,
+        nullif(btrim(NEW.raw_user_meta_data ->> 'username'), ''),
+        CASE WHEN NEW.raw_app_meta_data ->> 'role' = 'admin' THEN 'admin' ELSE 'user' END
+    )
+    ON CONFLICT (id) DO NOTHING;
+    RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_user_profile() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS create_user_profile_after_signup ON auth.users;
+CREATE TRIGGER create_user_profile_after_signup
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.create_user_profile();
+
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.birthdays ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.holidays ENABLE ROW LEVEL SECURITY;
@@ -259,6 +336,18 @@ DROP POLICY IF EXISTS "Admins manage events" ON public.events;
 CREATE POLICY "Admins manage events"
     ON public.events FOR ALL TO authenticated
     USING (public.is_buhlo_admin()) WITH CHECK (public.is_buhlo_admin());
+DROP POLICY IF EXISTS "Members add events" ON public.events;
+CREATE POLICY "Members add events"
+    ON public.events FOR INSERT TO authenticated
+    WITH CHECK (
+        (SELECT auth.uid()) IS NOT NULL
+        AND length(btrim(title)) BETWEEN 1 AND 120
+        AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        AND length(coalesce(location, '')) <= 240
+        AND length(coalesce(description, '')) <= 2000
+        AND (recurrence IS NULL OR recurrence = 'yearly')
+        AND "maxParticipants" BETWEEN 1 AND 500
+    );
 
 DROP POLICY IF EXISTS "Public can read birthdays" ON public.birthdays;
 CREATE POLICY "Public can read birthdays"
@@ -275,6 +364,14 @@ DROP POLICY IF EXISTS "Admins manage holidays" ON public.holidays;
 CREATE POLICY "Admins manage holidays"
     ON public.holidays FOR ALL TO authenticated
     USING (public.is_buhlo_admin()) WITH CHECK (public.is_buhlo_admin());
+DROP POLICY IF EXISTS "Members add holidays" ON public.holidays;
+CREATE POLICY "Members add holidays"
+    ON public.holidays FOR INSERT TO authenticated
+    WITH CHECK (
+        (SELECT auth.uid()) IS NOT NULL
+        AND length(btrim(name)) BETWEEN 1 AND 120
+        AND event_type IN ('general', 'moto')
+    );
 
 DROP POLICY IF EXISTS "Admins read registrations" ON public.event_registrations;
 CREATE POLICY "Admins read registrations"
@@ -528,6 +625,10 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('BHCH_DATA', 'BHCH_DATA', false)
 ON CONFLICT (id) DO NOTHING;
 
+-- Size limit is enforced by the bucket (Storage RLS cannot see file metadata on insert).
+-- No MIME restriction here: the bucket also stores JSON backups.
+UPDATE storage.buckets SET file_size_limit = 10485760 WHERE id = 'BHCH_DATA';
+
 DROP POLICY IF EXISTS "Admins read BHCH_DATA" ON storage.objects;
 CREATE POLICY "Admins read BHCH_DATA"
     ON storage.objects FOR SELECT TO authenticated
@@ -667,6 +768,125 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_hub_question() FROM PUBLIC;
+-- Admin user management: list accounts and delete non-admin ones.
+CREATE OR REPLACE FUNCTION public.admin_list_users()
+RETURNS TABLE (
+    id uuid,
+    email text,
+    username text,
+    role text,
+    created_at timestamptz,
+    email_confirmed boolean,
+    last_sign_in_at timestamptz
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_buhlo_admin() THEN
+        RAISE EXCEPTION 'Недостаточно прав';
+    END IF;
+    RETURN QUERY
+    SELECT u.id, u.email::text, p.username, coalesce(p.role, 'user'), u.created_at,
+           u.email_confirmed_at IS NOT NULL, u.last_sign_in_at
+    FROM auth.users AS u
+    LEFT JOIN public.user_profiles AS p ON p.id = u.id
+    ORDER BY u.created_at DESC;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_delete_user(p_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_buhlo_admin() THEN
+        RAISE EXCEPTION 'Недостаточно прав';
+    END IF;
+    IF p_id = (SELECT auth.uid()) THEN
+        RAISE EXCEPTION 'Нельзя удалить самого себя';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM auth.users
+        WHERE id = p_id AND raw_app_meta_data ->> 'role' = 'admin'
+    ) THEN
+        RAISE EXCEPTION 'Нельзя удалить администратора';
+    END IF;
+    DELETE FROM auth.users WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Пользователь не найден';
+    END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_list_users() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_delete_user(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(uuid) TO authenticated;
+
+-- Registration gate: a one-time ticket is issued only for a correct hub answer, and a
+-- trigger on auth.users refuses sign-ups without a valid ticket (so the Auth API cannot be
+-- called directly to bypass the question). Tickets live 15 minutes; only hashes are stored.
+CREATE TABLE IF NOT EXISTS public.signup_tickets (
+    token_hash text PRIMARY KEY,
+    expires_at timestamptz NOT NULL DEFAULT now() + interval '15 minutes'
+);
+ALTER TABLE public.signup_tickets ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.signup_tickets FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.issue_signup_ticket(p_id bigint, p_answer text)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = extensions, pg_temp
+AS $$
+DECLARE
+    new_token text;
+BEGIN
+    IF NOT public.check_hub_answer(p_id, p_answer) THEN
+        RETURN NULL;
+    END IF;
+    DELETE FROM public.signup_tickets WHERE expires_at < now();
+    new_token := encode(extensions.gen_random_bytes(24), 'hex');
+    INSERT INTO public.signup_tickets (token_hash)
+    VALUES (encode(extensions.digest(new_token, 'sha256'), 'hex'));
+    RETURN new_token;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.require_signup_ticket()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = extensions, pg_temp
+AS $$
+DECLARE
+    used_count integer;
+BEGIN
+    DELETE FROM public.signup_tickets
+    WHERE token_hash = encode(extensions.digest(coalesce(NEW.raw_user_meta_data ->> 'signup_ticket', ''), 'sha256'), 'hex')
+      AND expires_at >= now();
+    GET DIAGNOSTICS used_count = ROW_COUNT;
+    IF used_count = 0 THEN
+        RAISE EXCEPTION 'Регистрация доступна только после верного ответа на контрольный вопрос';
+    END IF;
+    NEW.raw_user_meta_data := NEW.raw_user_meta_data - 'signup_ticket';
+    RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.issue_signup_ticket(bigint, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.issue_signup_ticket(bigint, text) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.require_signup_ticket() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS require_signup_ticket_before_insert ON auth.users;
+CREATE TRIGGER require_signup_ticket_before_insert
+    BEFORE INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.require_signup_ticket();
+
 REVOKE ALL ON FUNCTION public.check_hub_answer(bigint, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.save_hub_question(bigint, text, text, text, date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_hub_question() TO anon, authenticated;
@@ -727,6 +947,10 @@ DROP POLICY IF EXISTS "Admins manage gallery categories" ON public.gallery_categ
 CREATE POLICY "Admins manage gallery categories"
     ON public.gallery_categories FOR ALL TO authenticated
     USING (public.is_buhlo_admin()) WITH CHECK (public.is_buhlo_admin());
+DROP POLICY IF EXISTS "Members add gallery categories" ON public.gallery_categories;
+CREATE POLICY "Members add gallery categories"
+    ON public.gallery_categories FOR INSERT TO authenticated
+    WITH CHECK ((SELECT auth.uid()) IS NOT NULL);
 
 DROP POLICY IF EXISTS "Public can read gallery photos" ON public.gallery_photos;
 CREATE POLICY "Public can read gallery photos"
@@ -735,6 +959,61 @@ DROP POLICY IF EXISTS "Admins manage gallery photos" ON public.gallery_photos;
 CREATE POLICY "Admins manage gallery photos"
     ON public.gallery_photos FOR ALL TO authenticated
     USING (public.is_buhlo_admin()) WITH CHECK (public.is_buhlo_admin());
+DROP POLICY IF EXISTS "Members add gallery photos" ON public.gallery_photos;
+CREATE POLICY "Members add gallery photos"
+    ON public.gallery_photos FOR INSERT TO authenticated
+    WITH CHECK (
+        (SELECT auth.uid()) IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM storage.objects AS image
+            WHERE image.bucket_id = 'BHCH_DATA'
+              AND image.name = path
+              AND image.owner_id = (SELECT auth.uid())::text
+        )
+        AND (
+            thumb_path IS NULL
+            OR EXISTS (
+                SELECT 1
+                FROM storage.objects AS thumbnail
+                WHERE thumbnail.bucket_id = 'BHCH_DATA'
+                  AND thumbnail.name = thumb_path
+                  AND thumbnail.owner_id = (SELECT auth.uid())::text
+            )
+        )
+    );
+
+DROP POLICY IF EXISTS "Members upload gallery images" ON storage.objects;
+CREATE POLICY "Members upload gallery images"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (
+        bucket_id = 'BHCH_DATA'
+        AND (storage.foldername(name))[1] = 'gallery'
+        AND CASE
+            WHEN coalesce((storage.foldername(name))[2], '') ~ '^[0-9]+$'
+                THEN EXISTS (
+                    SELECT 1
+                    FROM public.gallery_categories AS category
+                    WHERE category.id = ((storage.foldername(name))[2])::bigint
+                )
+            ELSE false
+        END
+    );
+
+DROP POLICY IF EXISTS "Users remove unlisted gallery uploads" ON storage.objects;
+CREATE POLICY "Users remove unlisted gallery uploads"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (
+        bucket_id = 'BHCH_DATA'
+        AND (storage.foldername(name))[1] = 'gallery'
+        AND owner_id = (SELECT auth.uid())::text
+        AND NOT EXISTS (
+            SELECT 1
+            FROM public.gallery_photos AS photo
+            WHERE photo.path = storage.objects.name
+               OR photo.thumb_path = storage.objects.name
+        )
+    );
 
 -- Admins may also remove files from the bucket (gallery photos and backups).
 DROP POLICY IF EXISTS "Admins delete BHCH_DATA" ON storage.objects;
