@@ -816,3 +816,57 @@ body.lightbox-open {
     font-weight: 600;
     margin-bottom: 10px;
 }
+
+.info-post {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.info-post:last-child {
+    border-bottom: 0;
+}
+
+.info-post h3 {
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.info-post-date {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+
+.info-post-body {
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+}
+
+.info-post-link {
+    display: inline-block;
+    color: #ffd65c;
+    margin-bottom: 10px;
+    overflow-wrap: anywhere;
+}
+
+.info-post-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.info-post-images img {
+    max-width: 160px;
+    max-height: 120px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: zoom-in;
+    object-fit: cover;
+    background: var(--soft);
+}
+
+.info-post-images img.info-image-error {
+    width: 160px;
+    height: 90px;
+}

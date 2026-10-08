@@ -197,6 +197,23 @@
             </section>
 
             <section class="panel">
+                <h3>Инфо от Сергеича</h3>
+                <div id="info-editor-form" class="hidden">
+                    <input type="text" id="info-title" placeholder="Заголовок*" maxlength="200" />
+                    <textarea id="info-body" placeholder="Текст" maxlength="5000"></textarea>
+                    <input type="url" id="info-link" placeholder="Ссылка (если есть): https://…" maxlength="500" />
+                    <input type="file" id="info-files" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
+                    <div class="admin-actions">
+                        <button type="button" id="info-add-button" onclick="addInfoPost()">📌 Опубликовать</button>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">Картинки (JPG, PNG, WebP, GIF до 10 МБ) попадают в категорию галереи «Инфо от Сергеича».</p>
+                </div>
+                <p id="info-readonly-note" class="hidden" style="color: var(--text-muted);">Добавлять записи может только Сергеич. Удалять может любой администратор.</p>
+                <div id="info-posts-list" class="event-list"></div>
+                <div id="info-status" class="status-message hidden" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel">
                 <h3>Пользователи</h3>
                 <div class="admin-actions">
                     <button type="button" class="info" onclick="loadAdminUsers()">🔄 Обновить список</button>
