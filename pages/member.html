@@ -44,7 +44,7 @@
             <p id="member-session-name" class="member-status"></p>
             <div class="member-contribution-grid">
                 <form id="member-event-form" class="member-form-card">
-                    <h3>Добавить событие</h3>
+                    <h3 id="member-event-form-title">Добавить событие</h3>
                     <input type="text" id="member-event-title" placeholder="Название*" maxlength="120" required />
                     <input type="date" id="member-event-date" required />
                     <input type="time" id="member-event-time" />
@@ -60,7 +60,8 @@
                     </select>
                     <label for="member-event-limit">Максимум участников</label>
                     <input type="number" id="member-event-limit" value="30" min="1" max="500" required />
-                    <button type="submit">Опубликовать событие</button>
+                    <button type="submit" id="member-event-submit">Опубликовать событие</button>
+                    <button type="button" id="member-event-cancel" class="secondary-btn hidden" onclick="cancelMemberEventEdit()">Отменить редактирование</button>
                     <p id="member-event-status" class="member-status" role="status" aria-live="polite"></p>
                 </form>
 
@@ -96,6 +97,13 @@
                     <p id="member-photo-status" class="member-status" role="status" aria-live="polite"></p>
                 </form>
             </div>
+        </section>
+
+        <section id="member-events-section" class="hidden">
+            <h2>События</h2>
+            <p class="member-help">Здесь все события хаба. Свои события можно редактировать.</p>
+            <div id="member-events-list" class="member-events-list"></div>
+            <p id="member-events-status" class="member-status" role="status" aria-live="polite"></p>
         </section>
     </div>
 

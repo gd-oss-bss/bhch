@@ -8,6 +8,32 @@
     let isAdmin = false;
     let authUser = null;
     const BACKUP_BUCKET = 'BHCH_DATA';
+    const MEMBER_SESSION_KEY = 'buhlo_member_session';
+
+    // Сессия участника (не админа) живёт в sessionStorage вкладки, чтобы переход между страницами не требовал нового входа.
+    function persistMemberSession() {
+        try {
+            if (accessToken && refreshToken && authUser && !isAdmin) {
+                sessionStorage.setItem(MEMBER_SESSION_KEY, JSON.stringify({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                    user: authUser
+                }));
+            } else {
+                sessionStorage.removeItem(MEMBER_SESSION_KEY);
+            }
+        } catch (error) {
+            // sessionStorage недоступен — работаем без сохранения
+        }
+    }
+
+    function hasStoredMemberSession() {
+        try {
+            return Boolean(sessionStorage.getItem(MEMBER_SESSION_KEY));
+        } catch (error) {
+            return false;
+        }
+    }
 
     function requireConfiguration() {
         if (!configured) {
@@ -37,6 +63,7 @@
             refreshToken = '';
             isAdmin = false;
             authUser = null;
+            persistMemberSession();
             throw new Error('Сессия истекла. Войдите снова.');
         }
         const session = await authRequest('token?grant_type=refresh_token', {
@@ -46,6 +73,7 @@
         refreshToken = session.refresh_token;
         authUser = session.user || authUser;
         isAdmin = authUser?.app_metadata?.role === 'admin';
+        persistMemberSession();
     }
 
     async function request(path, options = {}, authenticated = false, canRefresh = true) {
@@ -499,7 +527,42 @@
         signInMember: async function(email, password) {
             const session = await authRequest('token?grant_type=password', { email, password });
             setSession(session);
+            persistMemberSession();
             return session.user;
+        },
+        get hasStoredMemberSession() { return hasStoredMemberSession(); },
+        restoreMemberSession: function() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem(MEMBER_SESSION_KEY) || 'null');
+                if (!saved?.access_token || !saved.refresh_token || !saved.user?.id) return false;
+                setSession(saved);
+                if (isAdmin) throw new Error('not a member session');
+                return true;
+            } catch (error) {
+                accessToken = '';
+                refreshToken = '';
+                isAdmin = false;
+                authUser = null;
+                persistMemberSession();
+                return false;
+            }
+        },
+        getMemberEvents: async function() {
+            const rows = await request('events?select=event_id,title,date,time,location,description,recurrence,maxParticipants,created_by&order=date.asc');
+            return (rows || []).map(row => ({ ...eventFromRow(row, []), createdBy: row.created_by }));
+        },
+        updateOwnEvent: async function(event) {
+            const row = eventToRow(event);
+            delete row.event_id;
+            const rows = await request(`events?event_id=eq.${encodeURIComponent(event.id)}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=representation' },
+                body: JSON.stringify(row)
+            }, true);
+            if (!Array.isArray(rows) || !rows.length) {
+                throw new Error('нельзя изменить это событие (оно не ваше или удалено)');
+            }
+            return eventFromRow(rows[0], []);
         },
         signIn: async function(email, password) {
             const session = await authRequest('token?grant_type=password', {
@@ -516,6 +579,7 @@
             refreshToken = '';
             isAdmin = false;
             authUser = null;
+            persistMemberSession();
         },
         getMemberProfile: async function() {
             if (!authUser?.id) throw new Error('Войдите в аккаунт участника.');

@@ -28,6 +28,27 @@ let appHolidays = [];
 let eventRefreshTimeout;
 
 let hubQuestionId = null;
+let hubMemberName = '';
+
+function showMemberInNav() {
+    const link = document.getElementById('member-nav-link');
+    if (link) link.textContent = hubMemberName ? `👤 ${hubMemberName}` : '👤 Кабинет';
+}
+
+// Участник с активной сессией уже прошёл контрольный вопрос при регистрации — повторно не спрашиваем.
+async function restoreMemberAccess() {
+    const api = window.BuhloSupabase;
+    if (!api?.configured || !api.hasStoredMemberSession || !api.restoreMemberSession()) return false;
+    try {
+        const profile = await api.getMemberProfile();
+        hubMemberName = profile.username || api.authUser?.email || '';
+        showMemberInNav();
+        return true;
+    } catch (error) {
+        api.signOut();
+        return false;
+    }
+}
 
 async function loadHubQuestion() {
     const question = document.getElementById('hub-question');
@@ -88,6 +109,9 @@ async function checkAuth() {
 }
 function logoutHub() {
     closeGalleryPhoto();
+    window.BuhloSupabase?.signOut();
+    hubMemberName = '';
+    showMemberInNav();
     isAuthenticated = false;
     localStorage.removeItem(HUB_AUTH_KEY);
     if (countdownInterval) clearInterval(countdownInterval);
@@ -126,7 +150,7 @@ function parseDateInput(displayString) {
     return `${year}-${month}-${day}`;
 }
 
-window.onload = function() {
+window.onload = async function() {
     const authInput = document.getElementById('auth-input');
     if (authInput) {
         authInput.addEventListener('keydown', event => {
@@ -151,6 +175,11 @@ window.onload = function() {
     }
 
     isAuthenticated = localStorage.getItem(HUB_AUTH_KEY) === 'true';
+    if (isAuthenticated) {
+        restoreMemberAccess().then(restored => { if (restored) renderEvents(); });
+    } else {
+        isAuthenticated = await restoreMemberAccess();
+    }
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
@@ -902,7 +931,7 @@ function renderEvents() {
                 </div>
                 ${registered ? '<div class="registered-badge">Вы уже записаны</div>' : ''}
                 <div class="registration-form hidden" id="form-${event.id}">
-                    <input type="text" id="reg-name-${event.id}" placeholder="Ваше имя*" />
+                    <input type="text" id="reg-name-${event.id}" placeholder="Ваше имя*" value="${escapeHtml(hubMemberName)}" />
                     <input type="text" id="reg-contact-${event.id}" placeholder="Telegram / телефон" />
                     <textarea id="reg-notes-${event.id}" placeholder="Комментарий"></textarea>
                     <button type="button" onclick="submitRegistration(${event.id})">Подтвердить запись</button>

@@ -7,7 +7,8 @@ ALTER TABLE public.events
     ADD COLUMN IF NOT EXISTS time text,
     ADD COLUMN IF NOT EXISTS recurrence text,
     ADD COLUMN IF NOT EXISTS "maxParticipants" integer NOT NULL DEFAULT 50,
-    ADD COLUMN IF NOT EXISTS event_id bigint;
+    ADD COLUMN IF NOT EXISTS event_id bigint,
+    ADD COLUMN IF NOT EXISTS created_by uuid DEFAULT auth.uid() REFERENCES auth.users (id) ON DELETE SET NULL;
 
 UPDATE public.events SET event_id = id WHERE event_id IS NULL;
 
@@ -335,7 +336,20 @@ DROP POLICY IF EXISTS "Members add events" ON public.events;
 CREATE POLICY "Members add events"
     ON public.events FOR INSERT TO authenticated
     WITH CHECK (
-        (SELECT auth.uid()) IS NOT NULL
+        created_by = (SELECT auth.uid())
+        AND length(btrim(title)) BETWEEN 1 AND 120
+        AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        AND length(coalesce(location, '')) <= 240
+        AND length(coalesce(description, '')) <= 2000
+        AND (recurrence IS NULL OR recurrence IN ('daily', 'weekly', 'monthly', 'yearly'))
+        AND "maxParticipants" BETWEEN 1 AND 500
+    );
+DROP POLICY IF EXISTS "Members edit own events" ON public.events;
+CREATE POLICY "Members edit own events"
+    ON public.events FOR UPDATE TO authenticated
+    USING (created_by = (SELECT auth.uid()))
+    WITH CHECK (
+        created_by = (SELECT auth.uid())
         AND length(btrim(title)) BETWEEN 1 AND 120
         AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
         AND length(coalesce(location, '')) <= 240
@@ -344,6 +358,24 @@ CREATE POLICY "Members add events"
         AND "maxParticipants" BETWEEN 1 AND 500
     );
 
+-- Non-admin users may not change an event's key or owner.
+CREATE OR REPLACE FUNCTION public.guard_event_update()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_buhlo_admin()
+       AND (NEW.event_id IS DISTINCT FROM OLD.event_id OR NEW.created_by IS DISTINCT FROM OLD.created_by) THEN
+        RAISE EXCEPTION 'Нельзя менять ключ или автора события';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS guard_event_update_before_update ON public.events;
+CREATE TRIGGER guard_event_update_before_update
+    BEFORE UPDATE ON public.events
+    FOR EACH ROW EXECUTE FUNCTION public.guard_event_update();
 DROP POLICY IF EXISTS "Public can read birthdays" ON public.birthdays;
 CREATE POLICY "Public can read birthdays"
     ON public.birthdays FOR SELECT TO anon, authenticated USING (true);
