@@ -848,6 +848,37 @@ body.lightbox-open {
     margin-bottom: 10px;
 }
 
+.info-post.collapsed .info-post-body {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 10;
+    line-clamp: 10;
+    overflow: hidden;
+}
+
+.info-post.collapsed .info-post-extra {
+    display: none;
+}
+
+.info-post-toggle,
+.info-posts-more {
+    width: auto;
+    margin-top: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--accent);
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.info-posts-more {
+    display: block;
+    margin: 12px auto 0;
+}
+
 .info-post-link {
     display: inline-block;
     color: #ffd65c;

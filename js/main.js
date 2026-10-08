@@ -589,6 +589,8 @@ function renderGallery() {
 }
 
 let infoPosts = [];
+let infoShowAll = false;
+const INFO_POSTS_LIMIT = 3;
 
 function safeExternalUrl(value) {
     try {
@@ -619,19 +621,35 @@ function renderInfoPosts() {
         container.innerHTML = '<p class="muted-message">Пока ничего нет.</p>';
         return;
     }
-    container.innerHTML = infoPosts.map((post, postIndex) => {
+    const visiblePosts = infoShowAll ? infoPosts : infoPosts.slice(0, INFO_POSTS_LIMIT);
+    container.innerHTML = visiblePosts.map((post, postIndex) => {
         const link = safeExternalUrl(post.link_url || '');
+        const hasExtra = Boolean(link) || post.photos.length > 0;
         return `
-            <article class="info-post">
+            <article class="info-post collapsed" data-extra="${hasExtra}">
                 <h3>${escapeHtml(post.title)}</h3>
                 <span class="info-post-date">${formatDate(post.created_at.slice(0, 10))}</span>
                 ${post.body ? `<p class="info-post-body">${escapeHtml(post.body)}</p>` : ''}
-                ${link ? `<a class="info-post-link" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">🔗 Открыть ссылку</a>` : ''}
-                ${post.photos.length ? `<div class="info-post-images">${post.photos.map((photo, photoIndex) => `
-                    <img alt="${escapeHtml(post.title)}" data-path="${escapeHtml(photo.thumb_path || photo.path)}" onclick="openInfoPhoto(${postIndex}, ${photoIndex})" />
-                `).join('')}</div>` : ''}
+                <div class="info-post-extra">
+                    ${link ? `<a class="info-post-link" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">🔗 Открыть ссылку</a>` : ''}
+                    ${post.photos.length ? `<div class="info-post-images">${post.photos.map((photo, photoIndex) => `
+                        <img alt="${escapeHtml(post.title)}" data-path="${escapeHtml(photo.thumb_path || photo.path)}" onclick="openInfoPhoto(${postIndex}, ${photoIndex})" />
+                    `).join('')}</div>` : ''}
+                </div>
+                <button type="button" class="info-post-toggle hidden" onclick="toggleInfoPost(this)">Развернуть ▾</button>
             </article>`;
-    }).join('');
+    }).join('') + (infoPosts.length > INFO_POSTS_LIMIT
+        ? `<button type="button" class="info-posts-more" onclick="toggleInfoPosts()">${infoShowAll ? 'Показать меньше ▴' : `Показать все записи (${infoPosts.length}) ▾`}</button>`
+        : '');
+    container.querySelectorAll('.info-post').forEach(article => {
+        const body = article.querySelector('.info-post-body');
+        const truncated = body && body.scrollHeight > body.clientHeight + 1;
+        if (truncated || article.dataset.extra === 'true') {
+            article.querySelector('.info-post-toggle').classList.remove('hidden');
+        } else {
+            article.classList.remove('collapsed');
+        }
+    });
     container.querySelectorAll('img[data-path]').forEach(async image => {
         try {
             image.src = await window.BuhloSupabase.getStorageBlobUrl(image.dataset.path);
@@ -640,6 +658,17 @@ function renderInfoPosts() {
             image.classList.add('info-image-error');
         }
     });
+}
+
+function toggleInfoPost(button) {
+    const article = button.closest('.info-post');
+    const collapsed = article.classList.toggle('collapsed');
+    button.textContent = collapsed ? 'Развернуть ▾' : 'Свернуть ▴';
+}
+
+function toggleInfoPosts() {
+    infoShowAll = !infoShowAll;
+    renderInfoPosts();
 }
 
 function openInfoPhoto(postIndex, photoIndex) {
