@@ -407,8 +407,8 @@
     }
 
     async function getInfoCategoryId() {
-        const rows = await request(`gallery_categories?select=id&name=eq.${encodeURIComponent('Инфо от Сергеича')}`);
-        if (!rows?.length) throw new Error('Категория «Инфо от Сергеича» не найдена. Выполните schema.sql.');
+        const rows = await request(`gallery_categories?select=id&name=eq.${encodeURIComponent('🍉Инфо от Арбузика🍉')}`);
+        if (!rows?.length) throw new Error('Категория «🍉Инфо от Арбузика🍉» не найдена. Выполните schema.sql.');
         return rows[0].id;
     }
 

@@ -607,7 +607,7 @@ async function loadInfoPosts() {
     try {
         infoPosts = await window.BuhloSupabase.getInfoPosts();
     } catch (error) {
-        console.warn('Инфо от Сергеича недоступно:', error.message);
+        console.warn('🍉Инфо от Арбузика🍉 недоступно:', error.message);
         container.innerHTML = '<p class="muted-message">Не удалось загрузить информацию.</p>';
         return;
     }

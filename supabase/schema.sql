@@ -1038,7 +1038,7 @@ CREATE POLICY "Members add gallery photos"
         )
     );
 
--- "Инфо от Сергеича": posts with optional link and images. Only the info editor (a single
+-- "🍉Инфо от Арбузика🍉": posts with optional link and images. Only the info editor (a single
 -- designated administrator) may add/edit; any administrator may delete.
 CREATE OR REPLACE FUNCTION public.is_info_editor()
 RETURNS boolean
@@ -1082,8 +1082,13 @@ DROP POLICY IF EXISTS "Admins delete info posts" ON public.info_posts;
 CREATE POLICY "Admins delete info posts"
     ON public.info_posts FOR DELETE TO authenticated USING (public.is_buhlo_admin());
 
+-- Rename the legacy category (kept so existing photos stay linked).
+UPDATE public.gallery_categories SET name = '🍉Инфо от Арбузика🍉'
+WHERE name = 'Инфо от Сергеича'
+  AND NOT EXISTS (SELECT 1 FROM public.gallery_categories WHERE name = '🍉Инфо от Арбузика🍉');
+
 INSERT INTO public.gallery_categories (name)
-VALUES ('Инфо от Сергеича')
+VALUES ('🍉Инфо от Арбузика🍉')
 ON CONFLICT (name) DO NOTHING;
 
 -- Writing into the info category is restricted to the info editor (restrictive policies
@@ -1095,7 +1100,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT id FROM public.gallery_categories WHERE name = 'Инфо от Сергеича';
+    SELECT id FROM public.gallery_categories WHERE name = '🍉Инфо от Арбузика🍉';
 $$;
 REVOKE ALL ON FUNCTION public.info_category_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.info_category_id() TO anon, authenticated;
