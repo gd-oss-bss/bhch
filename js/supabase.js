@@ -8,28 +8,54 @@
     let isAdmin = false;
     let authUser = null;
     const BACKUP_BUCKET = 'BHCH_DATA';
-    const MEMBER_SESSION_KEY = 'buhlo_member_session';
+    const SESSION_KEY = 'buhlo_session';
 
-    // Сессия участника (не админа) живёт в sessionStorage вкладки, чтобы переход между страницами не требовал нового входа.
-    function persistMemberSession() {
+    // Сессия живёт в sessionStorage вкладки. «Запомнить меня» (только для участников, не админов)
+    // дополнительно сохраняет её в localStorage этого устройства.
+    let rememberSession = false;
+
+    function persistSession() {
         try {
-            if (accessToken && refreshToken && authUser && !isAdmin) {
-                sessionStorage.setItem(MEMBER_SESSION_KEY, JSON.stringify({
+            if (accessToken && refreshToken && authUser) {
+                const payload = JSON.stringify({
                     access_token: accessToken,
                     refresh_token: refreshToken,
                     user: authUser
-                }));
+                });
+                sessionStorage.setItem(SESSION_KEY, payload);
+                if (rememberSession && !isAdmin) {
+                    localStorage.setItem(SESSION_KEY, payload);
+                } else {
+                    localStorage.removeItem(SESSION_KEY);
+                }
             } else {
-                sessionStorage.removeItem(MEMBER_SESSION_KEY);
+                sessionStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(SESSION_KEY);
+                rememberSession = false;
             }
         } catch (error) {
-            // sessionStorage недоступен — работаем без сохранения
+            // хранилище недоступно — работаем без сохранения
         }
     }
 
-    function hasStoredMemberSession() {
+    function readStoredSession() {
         try {
-            return Boolean(sessionStorage.getItem(MEMBER_SESSION_KEY));
+            const fromTab = sessionStorage.getItem(SESSION_KEY);
+            if (fromTab) return JSON.parse(fromTab);
+            const remembered = localStorage.getItem(SESSION_KEY);
+            if (remembered) {
+                rememberSession = true;
+                return JSON.parse(remembered);
+            }
+        } catch (error) {
+            return null;
+        }
+        return null;
+    }
+
+    function hasStoredSession() {
+        try {
+            return Boolean(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY));
         } catch (error) {
             return false;
         }
@@ -109,7 +135,7 @@
             refreshToken = '';
             isAdmin = false;
             authUser = null;
-            persistMemberSession();
+            persistSession();
             throw new Error('Сессия истекла. Войдите снова.');
         }
         const session = await authRequest('token?grant_type=refresh_token', {
@@ -119,7 +145,7 @@
         refreshToken = session.refresh_token;
         authUser = session.user || authUser;
         isAdmin = authUser?.app_metadata?.role === 'admin';
-        persistMemberSession();
+        persistSession();
     }
 
     async function request(path, options = {}, authenticated = false, canRefresh = true) {
@@ -631,28 +657,46 @@
                 body: JSON.stringify({ p_id: questionId, p_answer: answer })
             });
         },
+        // Единый вход: роль (участник или админ) определяется по токену.
+        signInUnified: async function(email, password, remember) {
+            const session = await authRequest('token?grant_type=password', { email, password });
+            setSession(session);
+            rememberSession = Boolean(remember);
+            persistSession();
+            return { user: session.user, isAdmin };
+        },
         signInMember: async function(email, password) {
             const session = await authRequest('token?grant_type=password', { email, password });
             setSession(session);
-            persistMemberSession();
+            persistSession();
             return session.user;
         },
-        get hasStoredMemberSession() { return hasStoredMemberSession(); },
-        restoreMemberSession: function() {
+        get hasStoredSession() { return hasStoredSession(); },
+        // Возвращает 'admin', 'member' или '' (нет сессии); битую сессию стирает.
+        restoreSession: function() {
             try {
-                const saved = JSON.parse(sessionStorage.getItem(MEMBER_SESSION_KEY) || 'null');
-                if (!saved?.access_token || !saved.refresh_token || !saved.user?.id) return false;
+                const saved = readStoredSession();
+                if (!saved?.access_token || !saved.refresh_token || !saved.user?.id) throw new Error('no session');
                 setSession(saved);
-                if (isAdmin) throw new Error('not a member session');
-                return true;
+                return isAdmin ? 'admin' : 'member';
             } catch (error) {
                 accessToken = '';
                 refreshToken = '';
                 isAdmin = false;
                 authUser = null;
-                persistMemberSession();
+                persistSession();
+                return '';
+            }
+        },
+        // Кабинет участника: админскую сессию не трогаем и не подхватываем.
+        restoreMemberSession: function() {
+            try {
+                const saved = readStoredSession();
+                if (saved?.user?.app_metadata?.role === 'admin') return false;
+            } catch (error) {
                 return false;
             }
+            return this.restoreSession() === 'member';
         },
         getMemberEvents: async function() {
             const rows = await request('events?select=event_id,title,date,time,location,description,recurrence,maxParticipants,created_by&order=date.asc');
@@ -671,22 +715,12 @@
             }
             return eventFromRow(rows[0], []);
         },
-        signIn: async function(email, password) {
-            const session = await authRequest('token?grant_type=password', {
-                email,
-                password
-            });
-            if (session.user?.app_metadata?.role !== 'admin') {
-                throw new Error('У этой учётной записи нет прав администратора.');
-            }
-            setSession(session);
-        },
         signOut: function() {
             accessToken = '';
             refreshToken = '';
             isAdmin = false;
             authUser = null;
-            persistMemberSession();
+            persistSession();
         },
         getMemberProfile: async function() {
             if (!authUser?.id) throw new Error('Войдите в аккаунт участника.');

@@ -33,12 +33,14 @@ let hubMemberName = '';
 function showMemberInNav() {
     const link = document.getElementById('member-nav-link');
     if (link) link.title = hubMemberName ? `Вы вошли как ${hubMemberName}` : 'Личный кабинет участника';
+    const adminItem = document.getElementById('admin-nav-item');
+    if (adminItem) adminItem.classList.toggle('hidden', !window.BuhloSupabase?.isAdmin);
 }
 
-// Участник с активной сессией уже прошёл контрольный вопрос при регистрации — повторно не спрашиваем.
+// Участник или админ с активной сессией уже вошли — контрольный вопрос не нужен.
 async function restoreMemberAccess() {
     const api = window.BuhloSupabase;
-    if (!api?.configured || !api.hasStoredMemberSession || !api.restoreMemberSession()) return false;
+    if (!api?.configured || !api.hasStoredSession || !api.restoreSession()) return false;
     try {
         const profile = await api.getMemberProfile();
         hubMemberName = profile.username || api.authUser?.email || '';
@@ -93,11 +95,6 @@ async function checkAuth() {
     input.value = '';
     if (correct) {
         isAuthenticated = true;
-        if (document.getElementById('remember-auth').checked) {
-            localStorage.setItem(HUB_AUTH_KEY, 'true');
-        } else {
-            localStorage.removeItem(HUB_AUTH_KEY);
-        }
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
         initPage();
@@ -119,18 +116,67 @@ function logoutHub() {
     document.getElementById('main-content').style.display = 'none';
     document.getElementById('auth-overlay').style.display = 'flex';
     document.getElementById('auth-input').value = '';
+    document.getElementById('hub-email').value = '';
+    document.getElementById('hub-password').value = '';
     document.getElementById('remember-auth').checked = false;
-    document.getElementById('auth-error').style.display = 'none';
+    showLoginStep();
     window.scrollTo(0, 0);
+}
+
+function showAuthError(message) {
+    const error = document.getElementById('auth-error');
+    error.textContent = message;
+    error.style.display = message ? 'block' : 'none';
+}
+
+function showGuestStep() {
+    showAuthError('');
+    document.getElementById('auth-login-step').classList.add('hidden');
+    document.getElementById('auth-guest-step').classList.remove('hidden');
     loadHubQuestion();
 }
 
-function goToAdmin() {
-    window.location.href = 'pages/admin.html';
+function showLoginStep() {
+    showAuthError('');
+    document.getElementById('auth-guest-step').classList.add('hidden');
+    document.getElementById('auth-login-step').classList.remove('hidden');
 }
 
-function goToMember() {
-    window.location.href = 'pages/member.html';
+async function loginHub(event) {
+    if (event) event.preventDefault();
+    const api = window.BuhloSupabase;
+    const email = document.getElementById('hub-email').value.trim();
+    const password = document.getElementById('hub-password').value;
+    if (!email || !password) {
+        showAuthError('Введите email и пароль.');
+        return false;
+    }
+    const button = document.getElementById('hub-login-button');
+    button.disabled = true;
+    try {
+        if (!api?.configured) throw new Error('Supabase не настроен');
+        await api.signInUnified(email, password, document.getElementById('remember-auth').checked);
+        try {
+            const profile = await api.getMemberProfile();
+            hubMemberName = profile.username || api.authUser?.email || '';
+        } catch (profileError) {
+            hubMemberName = api.authUser?.email || '';
+        }
+        showMemberInNav();
+        document.getElementById('hub-password').value = '';
+        showAuthError('');
+        isAuthenticated = true;
+        document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('main-content').style.display = 'block';
+        initPage();
+    } catch (error) {
+        api?.signOut();
+        document.getElementById('hub-password').value = '';
+        showAuthError(error.message);
+    } finally {
+        button.disabled = false;
+    }
+    return false;
 }
 
 // Форматирование даты из YYYY-MM-DD в DD.MM.YYYY
@@ -174,15 +220,12 @@ window.onload = async function() {
         });
     }
 
-    isAuthenticated = localStorage.getItem(HUB_AUTH_KEY) === 'true';
-    if (isAuthenticated) {
-        restoreMemberAccess().then(restored => { if (restored) { renderEvents(); if (infoPosts.length) renderInfoPosts(); } });
-    } else {
-        isAuthenticated = await restoreMemberAccess();
-    }
+    localStorage.removeItem(HUB_AUTH_KEY);
+    isAuthenticated = await restoreMemberAccess();
     if (!isAuthenticated) {
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('main-content').style.display = 'none';
+        showLoginStep();
         loadHubQuestion();
     } else {
         document.getElementById('auth-overlay').style.display = 'none';
