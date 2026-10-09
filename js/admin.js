@@ -14,10 +14,6 @@ let editingBirthdayIndex = null;
 let editingHolidayIndex = null;
 let isAdminAuthenticated = false;
 
-function goBackToHub() {
-    window.location.href = '../index.html';
-}
-
 function showDashboard() {
     document.getElementById('auth-block').classList.add('hidden');
     document.getElementById('topbar').classList.remove('hidden');
@@ -33,49 +29,28 @@ function applyInfoOnlyMode() {
     document.getElementById('view-toggle').classList.toggle('hidden', infoOnly);
 }
 
-function showAuth() {
-    document.getElementById('auth-block').classList.remove('hidden');
-    document.getElementById('topbar').classList.add('hidden');
-    document.getElementById('dashboard').classList.add('hidden');
-    document.getElementById('stats-view').classList.add('hidden');
+function redirectToHub() {
+    window.location.replace('../index.html');
 }
 
-async function checkAdminLogin() {
-    const login = document.getElementById('admin-email').value.trim();
-    const domainSelect = document.getElementById('admin-email-domain');
-    const email = login.includes('@') ? login : login + domainSelect.value;
-    localStorage.setItem('admin-email-domain', domainSelect.value);
-    const password = document.getElementById('admin-password').value;
-    const error = document.getElementById('admin-error');
-
-    try {
-        await window.BuhloSupabase.signIn(email, password);
-        isAdminAuthenticated = true;
-        document.getElementById('admin-password').value = '';
-        error.style.display = 'none';
-        showDashboard();
-        await (window.BuhloSupabase.isInfoEditor
-            ? loadAdminInfo()
-            : Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]));
-    } catch (loginError) {
-        error.textContent = loginError.code === 'invalid_credentials'
-            ? 'Отрезвей, а потом заходи в админку! Забыл пароль? Проверь под крышкой! Алкач'
-            : loginError.message;
-        error.style.display = 'block';
-        document.getElementById('admin-password').value = '';
-        window.BuhloSupabase.signOut();
-        isAdminAuthenticated = false;
+// Вход выполняется только на главной; здесь берём уже существующую сессию админа.
+async function startAdminSession() {
+    const api = window.BuhloSupabase;
+    if (!api?.configured || !api.hasStoredSession || api.restoreSession() !== 'admin') {
+        redirectToHub();
+        return;
     }
+    isAdminAuthenticated = true;
+    showDashboard();
+    await (api.isInfoEditor
+        ? loadAdminInfo()
+        : Promise.all([loadEvents(), loadAdminBirthdays(), loadAdminHolidays(), loadAdminHubQuestions(), loadAdminGallery(), loadAdminUsers(), loadAdminInfo()]));
 }
 
 function logoutAdmin() {
     window.BuhloSupabase.signOut();
     isAdminAuthenticated = false;
-    document.getElementById('admin-password').value = '';
-    document.getElementById('admin-error').style.display = 'none';
-    document.getElementById('stats-view').classList.add('hidden');
-    document.getElementById('view-toggle').textContent = 'Статистика';
-    showAuth();
+    redirectToHub();
 }
 
 function getDefaultEvents() {
@@ -1197,21 +1172,8 @@ document.addEventListener('click', function (event) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-    const savedDomain = localStorage.getItem('admin-email-domain');
-    const domainSelect = document.getElementById('admin-email-domain');
-    if (savedDomain && domainSelect && [...domainSelect.options].some(o => o.value === savedDomain)) {
-        domainSelect.value = savedDomain;
-    }
-    // Session-only auth: admin must login on each page load
-    if (!isAdminAuthenticated) {
-        showAuth();
-    }
+    startAdminSession();
 });
-
-window.onbeforeunload = function() {
-    window.BuhloSupabase.signOut();
-    isAdminAuthenticated = false;
-};
 
 let appUsers = [];
 

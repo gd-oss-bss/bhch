@@ -936,3 +936,25 @@ body.lightbox-open {
     color: var(--accent);
     background: rgba(245, 158, 11, 0.15);
 }
+
+.auth-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.auth-actions button {
+    flex: 1;
+    width: auto;
+}
+
+.auth-register-link {
+    display: block;
+    margin-top: 14px;
+    text-align: center;
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+
+.auth-back-btn {
+    margin-top: 14px;
+}

@@ -10,32 +10,36 @@
 <body>
     <div id="auth-overlay">
         <div class="auth-card">
-            <h2>Контрольный вопрос</h2>
-            <p id="hub-question">Загрузка вопроса…</p>
-            <div id="hub-form">
-                <input type="text" id="auth-input" placeholder="Введите ответ..." />
-                <label class="remember-auth">
-                    <input type="checkbox" id="remember-auth" />
-                    <span>Запомнить меня на этом устройстве</span>
-                </label>
-                <button onclick="checkAuth()">Войти как гость</button>
+            <div id="auth-login-step">
+                <h2>Вход в хаб</h2>
+                <form id="hub-login-form" onsubmit="return loginHub(event)">
+                    <input type="email" id="hub-email" autocomplete="email" placeholder="Email" />
+                    <input type="password" id="hub-password" autocomplete="current-password" placeholder="Пароль" />
+                    <label class="remember-auth">
+                        <input type="checkbox" id="remember-auth" />
+                        <span>Запомнить меня на этом устройстве</span>
+                    </label>
+                    <div class="auth-actions">
+                        <button type="submit" id="hub-login-button">Войти</button>
+                        <button type="button" class="secondary-btn" onclick="showGuestStep()">Войти как гость</button>
+                    </div>
+                </form>
+                <a href="pages/member.html" class="auth-register-link">Регистрация</a>
             </div>
 
-            <div class="auth-card-divider">
-                <span>или</span>
+            <div id="auth-guest-step" class="hidden">
+                <h2>Контрольный вопрос</h2>
+                <p id="hub-question">Загрузка вопроса…</p>
+                <div id="hub-form">
+                    <input type="text" id="auth-input" placeholder="Введите ответ..." />
+                    <button onclick="checkAuth()">Войти в хаб</button>
+                </div>
+                <button type="button" class="secondary-btn auth-back-btn" onclick="showLoginStep()">← Назад ко входу</button>
             </div>
 
-            <button type="button" class="secondary-btn" onclick="goToMember()">Кабинет участника</button>
-
-            <div class="auth-card-divider">
-                <span>или</span>
-            </div>
-
-            <button class="admin-btn" onclick="goToAdmin()">Админ-кабинет</button>
             <div id="auth-error" class="error-msg">Неверно! Директор расстроится.</div>
         </div>
     </div>
-
     <div id="main-content">
         <header>
             <nav class="nav-container">
@@ -49,7 +53,7 @@
                     <li><a href="#contacts-sec">Контакты</a></li>
                     <li><a href="#bdays-sec">ДР</a></li>
                     <li><a href="pages/member.html" id="member-nav-link" class="admin-link">👤 Личный кабинет</a></li>
-                    <li><a href="pages/admin.html" class="admin-link">🔑 Админка</a></li>
+                    <li id="admin-nav-item" class="hidden"><a href="pages/admin.html" class="admin-link">🔑 Админка</a></li>
                     <li><button type="button" class="logout-link" onclick="logoutHub()">🚪 Уйти в аут</button></li>
                 </ul>
             </nav>
