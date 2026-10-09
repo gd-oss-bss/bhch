@@ -30,6 +30,7 @@ function updateMemberPanel(profile = null) {
     const isAdmin = Boolean(api?.isAdmin);
     const memberSignedIn = hasSession && !isAdmin;
     document.getElementById('member-auth').classList.toggle('hidden', hasSession);
+    document.getElementById('member-admin-notice').classList.toggle('hidden', !isAdmin);
     document.getElementById('member-contributions').classList.toggle('hidden', !memberSignedIn);
     document.getElementById('member-logout-item').classList.toggle('hidden', !hasSession);
     document.getElementById('member-admin-item').classList.toggle('hidden', !isAdmin);
