@@ -275,6 +275,14 @@ header {
     box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
 }
 
+.nav-links .admin-link.is-active {
+    background: rgba(245, 158, 11, 0.28);
+    border-color: #f59e0b;
+    color: #fff0a6;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.55), 0 0 22px rgba(245, 158, 11, 0.3);
+    text-shadow: 0 0 8px rgba(255, 214, 92, 0.8);
+}
+
 .nav-links .logout-link {
     width: auto;
     white-space: nowrap;

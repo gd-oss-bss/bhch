@@ -34,7 +34,11 @@ function showMemberInNav() {
     const link = document.getElementById('member-nav-link');
     if (link) link.title = hubMemberName ? `Вы вошли как ${hubMemberName}` : 'Личный кабинет участника';
     const adminItem = document.getElementById('admin-nav-item');
-    if (adminItem) adminItem.classList.toggle('hidden', !window.BuhloSupabase?.isAdmin);
+    const isAdmin = Boolean(window.BuhloSupabase?.isAdmin);
+    if (adminItem) {
+        adminItem.classList.toggle('hidden', !isAdmin);
+        adminItem.querySelector('a')?.classList.toggle('is-active', isAdmin);
+    }
 }
 
 // Участник или админ с активной сессией уже вошли — контрольный вопрос не нужен.
