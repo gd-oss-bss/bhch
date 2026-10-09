@@ -345,7 +345,7 @@ window.addEventListener('load', () => {
 
 async function restoreMemberView() {
     const api = window.BuhloSupabase;
-    if (api?.configured && api.hasStoredMemberSession && api.restoreMemberSession()) {
+    if (api?.configured && api.hasStoredSession && api.restoreMemberSession()) {
         try {
             const profile = await api.getMemberProfile();
             updateMemberPanel(profile);
