@@ -25,12 +25,16 @@ function escapeHtml(value) {
 }
 
 function updateMemberPanel(profile = null) {
-    const signedIn = Boolean(window.BuhloSupabase?.isMemberAuthenticated);
-    document.getElementById('member-auth').classList.toggle('hidden', signedIn);
-    document.getElementById('member-contributions').classList.toggle('hidden', !signedIn);
-    document.getElementById('member-logout-item').classList.toggle('hidden', !signedIn);
-    document.getElementById('member-events-section').classList.toggle('hidden', !signedIn);
-    if (signedIn) {
+    const api = window.BuhloSupabase;
+    const hasSession = Boolean(api?.isMemberAuthenticated);
+    const isAdmin = Boolean(api?.isAdmin);
+    const memberSignedIn = hasSession && !isAdmin;
+    document.getElementById('member-auth').classList.toggle('hidden', hasSession);
+    document.getElementById('member-contributions').classList.toggle('hidden', !memberSignedIn);
+    document.getElementById('member-logout-item').classList.toggle('hidden', !hasSession);
+    document.getElementById('member-admin-item').classList.toggle('hidden', !isAdmin);
+    document.getElementById('member-events-section').classList.toggle('hidden', !memberSignedIn);
+    if (memberSignedIn) {
         const name = profile?.username || window.BuhloSupabase.authUser?.email || '';
         setMemberStatus('member-session-name', `Вы вошли как ${name}`);
     }
@@ -345,7 +349,16 @@ window.addEventListener('load', () => {
 
 async function restoreMemberView() {
     const api = window.BuhloSupabase;
-    if (api?.configured && api.hasStoredSession && api.restoreMemberSession()) {
+    if (api?.configured && api.hasStoredSession) {
+        const role = api.restoreSession();
+        if (role === 'admin') {
+            updateMemberPanel();
+            return;
+        }
+        if (role !== 'member') {
+            updateMemberPanel();
+            return;
+        }
         try {
             const profile = await api.getMemberProfile();
             updateMemberPanel(profile);
