@@ -438,10 +438,24 @@ AS $$
 DECLARE
     event_limit integer;
     current_count bigint;
+    account_name text;
     saved_registration public.event_registrations%ROWTYPE;
 BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Для записи необходимо войти в аккаунт' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT nullif(btrim(profiles.username), '')
+    INTO account_name
+    FROM public.user_profiles AS profiles
+    WHERE profiles.id = auth.uid();
+
+    IF account_name IS NULL THEN
+        RAISE EXCEPTION 'В профиле аккаунта не указано имя';
+    END IF;
+
     IF p_registration_key IS NULL
-       OR length(trim(coalesce(p_name, ''))) NOT BETWEEN 1 AND 120
+       OR length(account_name) > 120
        OR length(coalesce(p_contact, '')) > 200
        OR length(coalesce(p_notes, '')) > 2000 THEN
         RAISE EXCEPTION 'Некорректные данные регистрации';
@@ -481,7 +495,7 @@ BEGIN
     VALUES (
         p_event_id,
         p_registration_key,
-        trim(p_name),
+        account_name,
         coalesce(nullif(trim(p_contact), ''), 'не указан'),
         coalesce(trim(p_notes), '')
     )

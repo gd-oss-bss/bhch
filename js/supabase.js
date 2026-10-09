@@ -86,6 +86,8 @@
         let message;
         if (code === 'over_email_send_rate_limit') message = 'Превышен лимит отправки писем. Попробуйте позже.';
         else if (code === 'over_request_rate_limit' || status === 429) message = 'Слишком много запросов. Подождите немного и повторите.';
+        else if (/Для записи необходимо войти в аккаунт/i.test(raw)) message = 'Чтобы записаться на событие, войдите по email и паролю.';
+        else if (/В профиле аккаунта не указано имя/i.test(raw)) message = 'В профиле аккаунта не указано имя. Обновите имя в личном кабинете и попробуйте снова.';
         else if (code === 'invalid_credentials') message = 'Неверный email или пароль.';
         else if (code === 'email_not_confirmed') message = 'Email не подтверждён.';
         else if (code === 'weak_password') message = 'Пароль слишком простой. Используйте не менее 6 символов.';
@@ -356,7 +358,7 @@
                 p_contact: contact || 'не указан',
                 p_notes: notes || ''
             })
-        });
+        }, true);
     }
 
     async function storageRequest(path, options = {}, canRefresh = true) {

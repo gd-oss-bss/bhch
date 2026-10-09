@@ -32,7 +32,10 @@ let hubMemberName = '';
 
 function showMemberInNav() {
     const link = document.getElementById('member-nav-link');
-    if (link) link.title = hubMemberName ? `Вы вошли как ${hubMemberName}` : 'Личный кабинет участника';
+    const email = window.BuhloSupabase?.authUser?.email || '';
+    if (link) link.title = hubMemberName || email
+        ? `Вы вошли как ${hubMemberName || email}`
+        : 'Личный кабинет участника';
     const adminItem = document.getElementById('admin-nav-item');
     const isAdmin = Boolean(window.BuhloSupabase?.isAdmin);
     if (adminItem) {
@@ -47,7 +50,7 @@ async function restoreMemberAccess() {
     if (!api?.configured || !api.hasStoredSession || !api.restoreSession()) return false;
     try {
         const profile = await api.getMemberProfile();
-        hubMemberName = profile.username || api.authUser?.email || '';
+        hubMemberName = profile.username || '';
         showMemberInNav();
         return true;
     } catch (error) {
@@ -108,6 +111,15 @@ async function checkAuth() {
         loadHubQuestion();
     }
 }
+
+function requireMemberLoginForRegistration() {
+    const api = window.BuhloSupabase;
+    if (api?.isMemberAuthenticated) return true;
+
+    alert('Чтобы записаться на событие, зарегистрируйтесь или войдите под учеткой.');
+    return false;
+}
+
 function logoutHub() {
     closeGalleryPhoto();
     window.BuhloSupabase?.signOut();
@@ -162,9 +174,9 @@ async function loginHub(event) {
         await api.signInUnified(email, password, document.getElementById('remember-auth').checked);
         try {
             const profile = await api.getMemberProfile();
-            hubMemberName = profile.username || api.authUser?.email || '';
+            hubMemberName = profile.username || '';
         } catch (profileError) {
-            hubMemberName = api.authUser?.email || '';
+            hubMemberName = '';
         }
         showMemberInNav();
         document.getElementById('hub-password').value = '';
@@ -507,13 +519,14 @@ async function syncLocalRegistrations() {
     const registrations = getRegistrationMap(REGISTRATIONS_KEY);
     const keys = getRegistrationMap('buhlo_registration_keys');
     let changed = false;
-    for (const eventId of Object.keys(registrations)) {
-        const key = registrations[eventId]?.key;
+    for (const registrationId of Object.keys(registrations)) {
+        const key = registrations[registrationId]?.key;
         if (typeof key !== 'string') continue;
         try {
-            if (await window.BuhloSupabase.hasRegistration(Number(eventId), key) === false) {
-                delete registrations[eventId];
-                delete keys[eventId];
+            const eventId = Number(registrationId.split(':').pop());
+            if (await window.BuhloSupabase.hasRegistration(eventId, key) === false) {
+                delete registrations[registrationId];
+                delete keys[registrationId];
                 changed = true;
             }
         } catch (error) {
@@ -1118,36 +1131,52 @@ function renderEvents() {
 }
 
 function showRegistrationForm(eventId) {
+    if (!requireMemberLoginForRegistration()) return;
     const form = document.getElementById(`form-${eventId}`);
-    if (form) form.classList.toggle('hidden');
+    if (!form) return;
+    const nameInput = document.getElementById(`reg-name-${eventId}`);
+    if (nameInput) {
+        nameInput.value = hubMemberName;
+        nameInput.readOnly = true;
+        nameInput.placeholder = hubMemberName ? 'Имя из вашего аккаунта' : 'Укажите имя в аккаунте';
+    }
+    form.classList.toggle('hidden');
 }
 
 function hasUserRegistered(eventId) {
+    const userId = window.BuhloSupabase?.authUser?.id;
+    if (!userId) return false;
     const registrations = getRegistrationMap(REGISTRATIONS_KEY);
-    return typeof registrations[eventId]?.key === 'string';
+    return typeof registrations[`${userId}:${eventId}`]?.key === 'string';
 }
 
 function getRegistrationKey(eventId) {
     const keys = getRegistrationMap('buhlo_registration_keys');
-    if (typeof keys[eventId] === 'string' &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(keys[eventId])) {
-        return keys[eventId];
+    const userId = window.BuhloSupabase?.authUser?.id;
+    if (!userId) {
+        throw new Error('Войдите в аккаунт, чтобы записаться на событие.');
+    }
+    const key = `${userId}:${eventId}`;
+    if (typeof keys[key] === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(keys[key])) {
+        return keys[key];
     }
     if (!window.crypto?.randomUUID) {
         throw new Error('В этом браузере невозможно безопасно создать ключ регистрации.');
     }
-    keys[eventId] = window.crypto.randomUUID();
+    keys[key] = window.crypto.randomUUID();
     localStorage.setItem('buhlo_registration_keys', JSON.stringify(keys));
-    return keys[eventId];
+    return keys[key];
 }
 
 async function submitRegistration(eventId) {
-    const name = document.getElementById(`reg-name-${eventId}`)?.value.trim();
+    if (!requireMemberLoginForRegistration()) return;
+    const accountName = hubMemberName.trim();
     const contact = document.getElementById(`reg-contact-${eventId}`)?.value.trim();
     const notes = document.getElementById(`reg-notes-${eventId}`)?.value.trim();
 
-    if (!name) {
-        alert('Введите имя для записи');
+    if (!accountName) {
+        alert('В профиле аккаунта не указано имя. Обновите имя в личном кабинете и попробуйте снова.');
         return;
     }
 
@@ -1164,10 +1193,10 @@ async function submitRegistration(eventId) {
             throw new Error('Регистрация временно недоступна: Supabase не настроен.');
         }
         const registrationKey = getRegistrationKey(eventId);
-        await window.BuhloSupabase.submitRegistration(eventId, registrationKey, name, contact, notes);
+        await window.BuhloSupabase.submitRegistration(eventId, registrationKey, accountName, contact, notes);
         savedToSupabase = true;
         const registrations = getRegistrationMap(REGISTRATIONS_KEY);
-        registrations[eventId] = { key: registrationKey };
+        registrations[`${window.BuhloSupabase.authUser.id}:${eventId}`] = { key: registrationKey };
         localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations));
 
         await loadEvents();

@@ -52,10 +52,10 @@
                     <button type="button" class="info" onclick="syncEventsWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
                 <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="backupEventsToStorage()">☁️ Бэкап в Storage (events.json)</button>
+                    <button type="button" class="secondary" onclick="backupEventsToStorage()">☁️ Бэкап в Storage </button>
                     <button type="button" class="secondary" onclick="restoreEventsFromStorage()">♻️ Восстановить из бэкапа</button>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Storage. Рабочие данные живут в базе.</p>
                 <div id="events-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
 
@@ -78,10 +78,10 @@
                     <button type="button" class="info" onclick="syncBirthdaysWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
                 <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="backupBirthdaysToStorage()">☁️ Бэкап в Storage (birthdays.json)</button>
+                    <button type="button" class="secondary" onclick="backupBirthdaysToStorage()">☁️ Бэкап в Storage </button>
                     <button type="button" class="secondary" onclick="restoreBirthdaysFromStorage()">♻️ Восстановить из бэкапа</button>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Storage. Рабочие данные живут в базе.</p>
                 <button type="button" id="legacy-birthday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateBirthdayDraft()">Импортировать старый локальный черновик</button>
                 <div id="birthday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
@@ -108,10 +108,10 @@
                     <button type="button" class="info" onclick="syncHolidaysWithServer('load')">🔄 Загрузить из Supabase</button>
                 </div>
                 <div class="admin-actions">
-                    <button type="button" class="secondary" onclick="backupHolidaysToStorage()">☁️ Бэкап в Storage (holidays.json)</button>
+                    <button type="button" class="secondary" onclick="backupHolidaysToStorage()">☁️ Бэкап в Storage </button>
                     <button type="button" class="secondary" onclick="restoreHolidaysFromStorage()">♻️ Восстановить из бэкапа</button>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Supabase Storage (BHCH_DATA/data). Рабочие данные живут в базе.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 12px;">JSON хранится только как резервная копия в Storage. Рабочие данные живут в базе.</p>
                 <button type="button" id="legacy-holiday-draft" class="secondary hidden" style="width:100%; margin-top: 12px;" onclick="migrateHolidayDraft()">Импортировать старый локальный черновик</button>
                 <div id="holiday-status" class="status-message hidden" role="status" aria-live="polite"></div>
             </section>
@@ -225,7 +225,7 @@
             </section>
 
             <section class="panel">
-                <h3>Хранилище (BHCH_DATA)</h3>
+                <h3>Хранилище</h3>
                 <div class="stats-cards" id="storage-cards"></div>
                 <div id="storage-folders"></div>
             </section>

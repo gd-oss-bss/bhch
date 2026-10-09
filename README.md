@@ -66,6 +66,8 @@ Member photo uploads are limited by Storage RLS to existing gallery categories; 
 
 The hub question lives in `public.hub_questions` (question, hashed answer, description, available from/to). Manage them in the admin page; answers are stored only as bcrypt hashes and verified server-side. With no active question the hub entry is closed. Run `supabase/schema.sql` and add at least one question after the first deploy.
 
+Event registration requires an authenticated Supabase account; guest access through the hub question is not sufficient. The submit RPC verifies `auth.uid()` and stores the username from `user_profiles`, ignoring any client-supplied name. Re-run `supabase/schema.sql` to apply the enforcement.
+
 
 ## Галерея
 
@@ -96,4 +98,3 @@ The hub question lives in `public.hub_questions` (question, hashed answer, descr
 ## Единый вход в хаб
 
 Экран входа на главной: Email + пароль (участник или администратор — роль определяется по токену) и кнопка «Войти как гость», после которой задаётся контрольный вопрос. Ссылка «Регистрация» ведёт на `pages/member.html`. Отдельного входа в админку нет: администратор входит на главной, ссылка «Админка» в меню видна только ему, а `pages/admin.html` без админской сессии перенаправляет на главную. Сессия (участника или админа) хранится в `sessionStorage` вкладки (ключ `buhlo_session`) и пропадает при закрытии вкладки или выходе («Уйти в аут» / «Выйти»). Токен доступен скриптам страницы, поэтому весь пользовательский вывод экранируется, а граница доступа — RLS на сервере.
-
