@@ -426,6 +426,21 @@ function renderEventLocation(location) {
     return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
 }
 
+function renderEventLink(value) {
+    const link = String(value || '').trim();
+    if (!link) return '';
+
+    let url;
+    try {
+        url = new URL(link);
+    } catch {
+        return '';
+    }
+
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть событие</a>`;
+}
+
 const ADMIN_LIST_LIMIT = 5;
 
 function renderCollapsibleList(items, renderItem) {
@@ -586,6 +601,7 @@ function renderEvents() {
     list.innerHTML = renderCollapsibleList(appEvents, event => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registrations = appRegistrations.filter(item => item.event_id === event.id);
+        const eventLink = renderEventLink(event.event_link);
         return `
             <div class="event-item">
                 <h4>${escapeHtml(event.title || 'Без названия')}</h4>
@@ -595,6 +611,7 @@ function renderEvents() {
                     ${RECURRENCE_LABELS[event.recurrence] ? `<span class="tag">${RECURRENCE_LABELS[event.recurrence]}</span>` : ''}
                     <span class="tag">${escapeHtml(event.time || 'Время не указано')}</span>
                     <span class="tag">${renderEventLocation(event.location || 'Место не указано')}</span>
+                    ${eventLink ? `<span class="tag">${eventLink}</span>` : ''}
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
                 ${registrations.length ? `<div class="registration-list"><strong>Записи:</strong>${registrations.map(person =>
@@ -625,11 +642,17 @@ async function saveEvent() {
     const recurrence = document.getElementById('event-recurrence').value || undefined;
     const time = document.getElementById('event-time').value;
     const location = document.getElementById('event-location').value.trim();
+    const eventLink = document.getElementById('event-link').value.trim();
     const description = document.getElementById('event-description').value.trim();
     const limit = Number(document.getElementById('event-limit').value) || 30;
 
     if (!title || !date) {
         alert('Заполните название и дату события');
+        return;
+    }
+
+    if (eventLink && !renderEventLink(eventLink)) {
+        setEventsStatus('Укажите корректную ссылку, начинающуюся с http:// или https://.', true);
         return;
     }
 
@@ -642,6 +665,7 @@ async function saveEvent() {
         time,
         recurrence,
         location: location || previous?.location || 'Место не указано',
+        event_link: eventLink,
         description: description || previous?.description || 'Описание события скоро появится.',
         participants: previous?.participants || [],
         maxParticipants: limit
@@ -670,6 +694,7 @@ function editEvent(eventId) {
     document.getElementById('event-recurrence').value = RECURRENCE_LABELS[event.recurrence] ? event.recurrence : '';
     document.getElementById('event-time').value = event.time || '';
     document.getElementById('event-location').value = event.location || '';
+    document.getElementById('event-link').value = event.event_link || '';
     document.getElementById('event-description').value = event.description || '';
     document.getElementById('event-limit').value = event.maxParticipants || 30;
 
@@ -723,6 +748,7 @@ function resetForm() {
     document.getElementById('event-recurrence').value = '';
     document.getElementById('event-time').value = '';
     document.getElementById('event-location').value = '';
+    document.getElementById('event-link').value = '';
     document.getElementById('event-description').value = '';
     document.getElementById('event-limit').value = 30;
 

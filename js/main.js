@@ -986,6 +986,21 @@ function renderEventLocation(location) {
     return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
 }
 
+function renderEventLink(value) {
+    const link = String(value || '').trim();
+    if (!link) return '';
+
+    let url;
+    try {
+        url = new URL(link);
+    } catch {
+        return '';
+    }
+
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Подробнее тут</a>`;
+}
+
 function getNextBirthday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1093,6 +1108,7 @@ function renderEvents() {
     eventsList.innerHTML = visibleEvents.map((event, index) => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registered = hasUserRegistered(event.id);
+        const eventLink = renderEventLink(event.event_link);
         return `
             ${index > 0 ? '<div class="section-divider"></div>' : ''}
             <article class="event-card" data-id="${event.id}">
@@ -1106,6 +1122,7 @@ function renderEvents() {
                 <div class="event-meta">
                     <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span><br>
                     <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span><br>
+                    ${eventLink ? `<span>🔗 ${eventLink}</span><br>` : ''}
                     <span  class="event-badge">✍️ ${participants.length} из ${event.maxParticipants || 50}</span>
                 </div>
                 <div class="event-actions">

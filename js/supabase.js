@@ -185,6 +185,7 @@
             date: event.date,
             time: event.time || null,
             location: event.location || '',
+            event_link: event.event_link || null,
             description: event.description || null,
             recurrence: event.recurrence || null,
             maxParticipants: event.maxParticipants
@@ -200,6 +201,7 @@
             date: row.date,
             time: row.time || '',
             location: row.location || '',
+            event_link: row.event_link || '',
             description: row.description || '',
             recurrence: row.recurrence || undefined,
             participants,
@@ -208,7 +210,7 @@
     }
 
     async function getEvents() {
-        const rows = await request('events?select=event_id,title,date,time,location,description,recurrence,maxParticipants&order=date.asc');
+        const rows = await request('events?select=event_id,title,date,time,location,event_link,description,recurrence,maxParticipants&order=date.asc');
         const participants = await request('rpc/get_public_event_participants', {
             method: 'POST',
             body: '{}'
