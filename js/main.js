@@ -1034,27 +1034,19 @@ function renderUpcomingHighlights() {
         .sort((a, b) => a.eventDate - b.eventDate);
 
     const items = [];
-    if (upcomingEvents[0]) {
-        items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${escapeHtml(upcomingEvents[0].title)} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
-    }
-  //  if (birthday) {
-    //    items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthday.nextDate.toISOString().slice(0, 10))} — ${birthday.name}</strong></div>`);
-  //  }
-        if (birthday) {
+    if (birthday) {
         const birthdayDateString = birthday.nextDate.toLocaleDateString('sv');
             items.push(`<div class="highlight-item"><span>🎂 Ближайший день рождения</span><strong>${formatDate(birthdayDateString)} — ${escapeHtml(birthday.name)}</strong></div>`);
     }
-  //  if (holiday) {
-   //     const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
-  //      items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${holiday.name} — ${formatDate(holiday.nextDate.toISOString().slice(0, 10))}</strong></div>`);
-  //  }
      // ИСПРАВЛЕНО: здесь тоже убран баг со сдвигом даты праздника
     if (holiday) {
         const holidayDateString = holiday.nextDate.toLocaleDateString('sv');
         const when = holiday.days === 0 ? 'сегодня' : `через ${holiday.days} дн.`;
         items.push(`<div class="highlight-item"><span>🎉 Ближайший праздник (${when})</span><strong>${escapeHtml(holiday.name)} — ${formatDate(holidayDateString)}</strong></div>`);
     }
-
+    if (upcomingEvents[0]) {
+        items.push(`<div class="highlight-item"><span>📅 Ближайшее событие</span><strong>${escapeHtml(upcomingEvents[0].title)} — ${formatDate(upcomingEvents[0].date)}</strong></div>`);
+    }
     container.innerHTML = items.length ? items.join('') : '<p class="muted-message">Ближайших событий пока нет.</p>';
 }
 
