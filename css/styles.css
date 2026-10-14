@@ -293,6 +293,12 @@ header {
     color: #ffd65c;
     font-weight: 700;
     text-align: center;
+    transition: all 0.3s;
+}
+
+.official-announcements-label:hover {
+    background: rgba(245, 158, 11, 0.25);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
 }
 
 .nav-links .logout-link {
