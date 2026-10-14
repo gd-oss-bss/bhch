@@ -384,12 +384,12 @@ function getNextEventDate(event, today) {
     return null;
 }
 
-function getYearlyEventDisplayStart(dateString) {
+function getEventDisplayStart(dateString) {
     const [year, month, day] = dateString.split('-').map(Number);
-    const previousMonth = new Date(year, month - 2, 1);
-    const startDay = Math.min(day, new Date(year, month - 1, 0).getDate());
-    previousMonth.setDate(startDay);
-    return getLocalDateString(previousMonth);
+    const displayStart = new Date(year, month - 3, 1);
+    const startDay = Math.min(day, new Date(year, month - 2, 0).getDate());
+    displayStart.setDate(startDay);
+    return getLocalDateString(displayStart);
 }
 
 function getVisibleEvents(today = new Date()) {
@@ -398,12 +398,11 @@ function getVisibleEvents(today = new Date()) {
         if (EVENT_RECURRENCES.includes(event.recurrence)) {
             const date = getNextEventDate(event, today);
             if (!date) return [];
-            if ((event.recurrence === 'yearly' || date === event.date) &&
-                todayString < getYearlyEventDisplayStart(date)) return [];
+            if (todayString < getEventDisplayStart(date)) return [];
             return [{ ...event, date }];
         }
         if (isValidEventDate(event.date) &&
-            (event.date < todayString || todayString < getYearlyEventDisplayStart(event.date))) return [];
+            (event.date < todayString || todayString < getEventDisplayStart(event.date))) return [];
         return [event];
     });
 }
