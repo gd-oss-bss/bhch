@@ -450,6 +450,16 @@ section h2 {
     font-size: 0.9rem;
 }
 
+.event-location-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.event-location-link:hover {
+    color: var(--accent);
+}
+
 .gallery-tabs {
     display: flex;
     flex-wrap: wrap;

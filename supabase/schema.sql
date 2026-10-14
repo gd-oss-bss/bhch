@@ -6,7 +6,10 @@
 ALTER TABLE public.events
     ADD COLUMN IF NOT EXISTS time text,
     ADD COLUMN IF NOT EXISTS recurrence text,
+    ADD COLUMN IF NOT EXISTS location_link text,
+    ADD COLUMN IF NOT EXISTS location_link_label text,
     ADD COLUMN IF NOT EXISTS event_link text,
+    ADD COLUMN IF NOT EXISTS event_link_label text,
     ADD COLUMN IF NOT EXISTS "maxParticipants" integer NOT NULL DEFAULT 50,
     ADD COLUMN IF NOT EXISTS event_id bigint,
     ADD COLUMN IF NOT EXISTS created_by uuid DEFAULT auth.uid() REFERENCES auth.users (id) ON DELETE SET NULL;
@@ -341,6 +344,10 @@ CREATE POLICY "Members add events"
         AND length(btrim(title)) BETWEEN 1 AND 120
         AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
         AND length(coalesce(location, '')) <= 240
+        AND length(coalesce(location_link, '')) <= 2048
+        AND length(coalesce(location_link_label, '')) <= 120
+        AND length(coalesce(event_link, '')) <= 2048
+        AND length(coalesce(event_link_label, '')) <= 120
         AND length(coalesce(description, '')) <= 2000
         AND (recurrence IS NULL OR recurrence IN ('daily', 'weekly', 'monthly', 'yearly'))
         AND "maxParticipants" BETWEEN 1 AND 500
@@ -354,6 +361,10 @@ CREATE POLICY "Members edit own events"
                                                                  AND length(btrim(title)) BETWEEN 1 AND 120
                                                                  AND (time IS NULL OR time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
                                                                  AND length(coalesce(location, '')) <= 240
+                                                                 AND length(coalesce(location_link, '')) <= 2048
+                                                                 AND length(coalesce(location_link_label, '')) <= 120
+                                                                 AND length(coalesce(event_link, '')) <= 2048
+                                                                 AND length(coalesce(event_link_label, '')) <= 120
                                                                  AND length(coalesce(description, '')) <= 2000
                                                                  AND (recurrence IS NULL OR recurrence IN ('daily', 'weekly', 'monthly', 'yearly'))
                                                                  AND "maxParticipants" BETWEEN 1 AND 500
@@ -517,11 +528,13 @@ BEGIN
 END IF;
 
 INSERT INTO public.events (
-    event_id, title, date, time, location, event_link, description, recurrence, "maxParticipants"
+    event_id, title, date, time, location, location_link, location_link_label, event_link, event_link_label,
+    description, recurrence, "maxParticipants"
 )
 SELECT
     item.event_id, item.title, item.date, nullif(item.time, ''),
-    coalesce(item.location, ''), item.event_link, item.description, item.recurrence,
+    coalesce(item.location, ''), item.location_link, item.location_link_label,
+    item.event_link, item.event_link_label, item.description, item.recurrence,
     coalesce(item."maxParticipants", 50)
 FROM jsonb_to_recordset(p_events) AS item(
                                           event_id bigint,
@@ -529,7 +542,10 @@ FROM jsonb_to_recordset(p_events) AS item(
                                           date date,
                                           time text,
                                           location text,
+                                          location_link text,
+                                          location_link_label text,
                                           event_link text,
+                                          event_link_label text,
                                           description text,
                                           recurrence text,
                                           "maxParticipants" integer
@@ -539,7 +555,10 @@ FROM jsonb_to_recordset(p_events) AS item(
                                   date = EXCLUDED.date,
                                   time = EXCLUDED.time,
                                   location = EXCLUDED.location,
+                                  location_link = EXCLUDED.location_link,
+                                  location_link_label = EXCLUDED.location_link_label,
                                   event_link = EXCLUDED.event_link,
+                                  event_link_label = EXCLUDED.event_link_label,
                                   description = EXCLUDED.description,
                                   recurrence = EXCLUDED.recurrence,
                                   "maxParticipants" = EXCLUDED."maxParticipants";

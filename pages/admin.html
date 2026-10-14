@@ -38,8 +38,13 @@
                     <option value="yearly">Ежегодно</option>
                 </select>
                 <input type="time" id="event-time" />
-                <input type="text" id="event-location" placeholder="Место или ссылка на карту" />
-                <input type="url" id="event-link" placeholder="Ссылка на событие (https://...)" />
+                <input type="text" id="event-location" placeholder="Место/описание (необязательно)" />
+                <label class="event-link-field-label" for="event-location-link-label">Подпись карты</label>
+                <input type="text" id="event-location-link-label" placeholder="Например, г. Лида" maxlength="120" />
+                <input type="url" id="event-location-link" placeholder="Ссылка на карту (https://...)" maxlength="2048" />
+                <label class="event-link-field-label" for="event-link-label">Подпись ссылки на событие</label>
+                <input type="text" id="event-link-label" placeholder="Например, чат в Telegram" maxlength="120" />
+                <input type="url" id="event-link" placeholder="Ссылка на событие (https://...)" maxlength="2048" />
                 <textarea id="event-description" placeholder="Описание события"></textarea>
                 <input type="number" id="event-limit" value="30" min="1" placeholder="Лимит участников" />
 

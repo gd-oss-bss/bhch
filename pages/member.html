@@ -54,7 +54,13 @@
                     <input type="text" id="member-event-title" placeholder="Название*" maxlength="120" required />
                     <input type="date" id="member-event-date" required />
                     <input type="time" id="member-event-time" />
-                    <input type="text" id="member-event-location" placeholder="Место" maxlength="240" />
+                    <input type="text" id="member-event-location" placeholder="Место/описание (необязательно)" maxlength="240" />
+                    <label for="member-event-location-link-label">Подпись карты</label>
+                    <input type="text" id="member-event-location-link-label" placeholder="Например, г. Лида" maxlength="120" />
+                    <input type="url" id="member-event-location-link" placeholder="Ссылка на карту (https://...)" maxlength="2048" />
+                    <label for="member-event-link-label">Подпись ссылки на событие</label>
+                    <input type="text" id="member-event-link-label" placeholder="Например, чат в Telegram" maxlength="120" />
+                    <input type="url" id="member-event-link" placeholder="Ссылка на событие (https://...)" maxlength="2048" />
                     <textarea id="member-event-description" placeholder="Описание" maxlength="2000"></textarea>
                     <label for="member-event-recurrence">Повторение</label>
                     <select id="member-event-recurrence">

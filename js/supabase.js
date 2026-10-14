@@ -185,7 +185,10 @@
             date: event.date,
             time: event.time || null,
             location: event.location || '',
+            location_link: event.location_link || null,
+            location_link_label: event.location_link_label || null,
             event_link: event.event_link || null,
+            event_link_label: event.event_link_label || null,
             description: event.description || null,
             recurrence: event.recurrence || null,
             maxParticipants: event.maxParticipants
@@ -201,7 +204,10 @@
             date: row.date,
             time: row.time || '',
             location: row.location || '',
+            location_link: row.location_link || '',
+            location_link_label: row.location_link_label || '',
             event_link: row.event_link || '',
+            event_link_label: row.event_link_label || '',
             description: row.description || '',
             recurrence: row.recurrence || undefined,
             participants,
@@ -210,7 +216,7 @@
     }
 
     async function getEvents() {
-        const rows = await request('events?select=event_id,title,date,time,location,event_link,description,recurrence,maxParticipants&order=date.asc');
+        const rows = await request('events?select=event_id,title,date,time,location,location_link,location_link_label,event_link,event_link_label,description,recurrence,maxParticipants&order=date.asc');
         const participants = await request('rpc/get_public_event_participants', {
             method: 'POST',
             body: '{}'
@@ -703,7 +709,7 @@
             return this.restoreSession() === 'member';
         },
         getMemberEvents: async function() {
-            const rows = await request('events?select=event_id,title,date,time,location,description,recurrence,maxParticipants,created_by&order=date.asc');
+            const rows = await request('events?select=event_id,title,date,time,location,location_link,location_link_label,event_link,event_link_label,description,recurrence,maxParticipants,created_by&order=date.asc');
             return (rows || []).map(row => ({ ...eventFromRow(row, []), createdBy: row.created_by }));
         },
         updateOwnEvent: async function(event) {

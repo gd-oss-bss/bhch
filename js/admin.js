@@ -411,34 +411,28 @@ function escapeHtml(value) {
     })[character]);
 }
 
-function renderEventLocation(location) {
-    const value = String(location || '').trim();
-    if (!/^https?:\/\//i.test(value)) return escapeHtml(value);
-
-    let url;
+function getHttpUrl(value) {
     try {
-        url = new URL(value);
+        const url = new URL(String(value || '').trim());
+        return ['http:', 'https:'].includes(url.protocol) && url.hostname ? url : null;
     } catch {
-        return escapeHtml(value);
+        return null;
     }
-
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return escapeHtml(value);
-    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
 }
 
-function renderEventLink(value) {
-    const link = String(value || '').trim();
-    if (!link) return '';
+function renderEventLocation(location, link, label) {
+    const value = String(location || '').trim();
+    const url = getHttpUrl(link) || (!link ? getHttpUrl(value) : null);
+    if (!url) return escapeHtml(value);
+    const linkLabel = String(label || '').trim() || 'Открыть на карте';
+    return `${link && value ? `${escapeHtml(value)} · ` : ''}<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
+}
 
-    let url;
-    try {
-        url = new URL(link);
-    } catch {
-        return '';
-    }
-
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
-    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть событие</a>`;
+function renderEventLink(value, label) {
+    const url = getHttpUrl(value);
+    if (!url) return '';
+    const linkLabel = String(label || '').trim() || 'Открыть событие';
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
 }
 
 const ADMIN_LIST_LIMIT = 5;
@@ -601,7 +595,7 @@ function renderEvents() {
     list.innerHTML = renderCollapsibleList(appEvents, event => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registrations = appRegistrations.filter(item => item.event_id === event.id);
-        const eventLink = renderEventLink(event.event_link);
+        const eventLink = renderEventLink(event.event_link, event.event_link_label);
         return `
             <div class="event-item">
                 <h4>${escapeHtml(event.title || 'Без названия')}</h4>
@@ -610,7 +604,7 @@ function renderEvents() {
                     <span class="tag">${event.date ? formatDate(event.date) : 'Дата не указана'}</span>
                     ${RECURRENCE_LABELS[event.recurrence] ? `<span class="tag">${RECURRENCE_LABELS[event.recurrence]}</span>` : ''}
                     <span class="tag">${escapeHtml(event.time || 'Время не указано')}</span>
-                    <span class="tag">${renderEventLocation(event.location || 'Место не указано')}</span>
+                    <span class="tag">${renderEventLocation(event.location || (event.location_link ? '' : 'Место не указано'), event.location_link, event.location_link_label)}</span>
                     ${eventLink ? `<span class="tag">${eventLink}</span>` : ''}
                     <span class="tag">${participants.length}/${event.maxParticipants || 30}</span>
                 </div>
@@ -642,6 +636,9 @@ async function saveEvent() {
     const recurrence = document.getElementById('event-recurrence').value || undefined;
     const time = document.getElementById('event-time').value;
     const location = document.getElementById('event-location').value.trim();
+    const locationLinkLabel = document.getElementById('event-location-link-label').value.trim();
+    const locationLink = document.getElementById('event-location-link').value.trim();
+    const eventLinkLabel = document.getElementById('event-link-label').value.trim();
     const eventLink = document.getElementById('event-link').value.trim();
     const description = document.getElementById('event-description').value.trim();
     const limit = Number(document.getElementById('event-limit').value) || 30;
@@ -651,7 +648,7 @@ async function saveEvent() {
         return;
     }
 
-    if (eventLink && !renderEventLink(eventLink)) {
+    if ((locationLink && !getHttpUrl(locationLink)) || (eventLink && !getHttpUrl(eventLink))) {
         setEventsStatus('Укажите корректную ссылку, начинающуюся с http:// или https://.', true);
         return;
     }
@@ -664,8 +661,11 @@ async function saveEvent() {
         date,
         time,
         recurrence,
-        location: location || previous?.location || 'Место не указано',
+        location,
+        location_link: locationLink,
+        location_link_label: locationLinkLabel,
         event_link: eventLink,
+        event_link_label: eventLinkLabel,
         description: description || previous?.description || 'Описание события скоро появится.',
         participants: previous?.participants || [],
         maxParticipants: limit
@@ -694,6 +694,9 @@ function editEvent(eventId) {
     document.getElementById('event-recurrence').value = RECURRENCE_LABELS[event.recurrence] ? event.recurrence : '';
     document.getElementById('event-time').value = event.time || '';
     document.getElementById('event-location').value = event.location || '';
+    document.getElementById('event-location-link-label').value = event.location_link_label || '';
+    document.getElementById('event-location-link').value = event.location_link || '';
+    document.getElementById('event-link-label').value = event.event_link_label || '';
     document.getElementById('event-link').value = event.event_link || '';
     document.getElementById('event-description').value = event.description || '';
     document.getElementById('event-limit').value = event.maxParticipants || 30;
@@ -748,6 +751,9 @@ function resetForm() {
     document.getElementById('event-recurrence').value = '';
     document.getElementById('event-time').value = '';
     document.getElementById('event-location').value = '';
+    document.getElementById('event-location-link-label').value = '';
+    document.getElementById('event-location-link').value = '';
+    document.getElementById('event-link-label').value = '';
     document.getElementById('event-link').value = '';
     document.getElementById('event-description').value = '';
     document.getElementById('event-limit').value = 30;

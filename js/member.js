@@ -24,6 +24,30 @@ function escapeHtml(value) {
     }[char]));
 }
 
+function getMemberHttpUrl(value) {
+    try {
+        const url = new URL(String(value || '').trim());
+        return ['http:', 'https:'].includes(url.protocol) && url.hostname ? url : null;
+    } catch {
+        return null;
+    }
+}
+
+function renderMemberLocation(location, link, label) {
+    const value = String(location || '').trim();
+    const url = getMemberHttpUrl(link) || (!link ? getMemberHttpUrl(value) : null);
+    if (!url) return escapeHtml(value);
+    const linkLabel = String(label || '').trim() || 'Открыть на карте';
+    return `${link && value ? `${escapeHtml(value)} · ` : ''}<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
+}
+
+function renderMemberEventLink(link, label) {
+    const url = getMemberHttpUrl(link);
+    if (!url) return '';
+    const linkLabel = String(label || '').trim() || 'Открыть событие';
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
+}
+
 function updateMemberPanel(profile = null) {
     const api = window.BuhloSupabase;
     const hasSession = Boolean(api?.isMemberAuthenticated);
@@ -154,6 +178,11 @@ async function createMemberEvent() {
     if (!Number.isInteger(maxParticipants) || maxParticipants < 1 || maxParticipants > 500) {
         return setMemberStatus(statusId, 'Максимум участников — от 1 до 500.', true);
     }
+    const locationLink = document.getElementById('member-event-location-link').value.trim();
+    const eventLink = document.getElementById('member-event-link').value.trim();
+    if ((locationLink && !getMemberHttpUrl(locationLink)) || (eventLink && !getMemberHttpUrl(eventLink))) {
+        return setMemberStatus(statusId, 'Укажите корректные ссылки, начинающиеся с http:// или https://.', true);
+    }
     try {
         setMemberStatus(statusId, editingMemberEventId ? 'Сохраняем…' : 'Публикуем…');
         const eventData = {
@@ -162,6 +191,10 @@ async function createMemberEvent() {
             date,
             time: document.getElementById('member-event-time').value,
             location: document.getElementById('member-event-location').value.trim(),
+            location_link_label: document.getElementById('member-event-location-link-label').value.trim(),
+            location_link: locationLink,
+            event_link_label: document.getElementById('member-event-link-label').value.trim(),
+            event_link: eventLink,
             description: document.getElementById('member-event-description').value.trim(),
             recurrence: document.getElementById('member-event-recurrence').value || undefined,
             maxParticipants
@@ -194,7 +227,8 @@ function renderMemberEvents() {
             return `
                 <div class="member-form-card">
                     <h3>${escapeHtml(event.title)}</h3>
-                    <p class="member-help">${escapeHtml(memberEventDateTime(event))}${event.location ? ` · ${escapeHtml(event.location)}` : ''}</p>
+                    <p class="member-help">${escapeHtml(memberEventDateTime(event))}${event.location ? ` · ${renderMemberLocation(event.location, event.location_link, event.location_link_label)}` : renderMemberLocation('', event.location_link, event.location_link_label)}</p>
+                    ${event.event_link ? `<p class="member-help">${renderMemberEventLink(event.event_link, event.event_link_label)}</p>` : ''}
                     <p class="member-help">${own ? 'Ваше событие' : 'Добавлено другим участником'}${MEMBER_RECURRENCE_LABELS[event.recurrence] ? ` · ${MEMBER_RECURRENCE_LABELS[event.recurrence]}` : ''}</p>
                     ${own ? `<button type="button" class="secondary-btn" onclick="editMemberEvent(${Number(event.id)})">Изменить</button>` : ''}
                 </div>`;
@@ -221,6 +255,10 @@ function editMemberEvent(id) {
     document.getElementById('member-event-date').value = event.date || '';
     document.getElementById('member-event-time').value = (event.time || '').slice(0, 5);
     document.getElementById('member-event-location').value = event.location || '';
+    document.getElementById('member-event-location-link-label').value = event.location_link_label || '';
+    document.getElementById('member-event-location-link').value = event.location_link || '';
+    document.getElementById('member-event-link-label').value = event.event_link_label || '';
+    document.getElementById('member-event-link').value = event.event_link || '';
     document.getElementById('member-event-description').value = event.description || '';
     document.getElementById('member-event-recurrence').value = MEMBER_RECURRENCE_LABELS[event.recurrence] ? event.recurrence : '';
     document.getElementById('member-event-limit').value = event.maxParticipants || 30;

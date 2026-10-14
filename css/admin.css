@@ -183,6 +183,12 @@ body {
     cursor: pointer;
 }
 
+.event-link-field-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+}
+
 .event-recurrence input {
     width: 18px;
     height: 18px;

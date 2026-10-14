@@ -971,34 +971,28 @@ function escapeHtml(value) {
     })[character]);
 }
 
-function renderEventLocation(location) {
-    const value = String(location || '').trim();
-    if (!/^https?:\/\//i.test(value)) return escapeHtml(value);
-
-    let url;
+function getHttpUrl(value) {
     try {
-        url = new URL(value);
+        const url = new URL(String(value || '').trim());
+        return ['http:', 'https:'].includes(url.protocol) && url.hostname ? url : null;
     } catch {
-        return escapeHtml(value);
+        return null;
     }
-
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return escapeHtml(value);
-    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Открыть на карте</a>`;
 }
 
-function renderEventLink(value) {
-    const link = String(value || '').trim();
-    if (!link) return '';
+function renderEventLocation(location, link, label) {
+    const value = String(location || '').trim();
+    const url = getHttpUrl(link) || (!link ? getHttpUrl(value) : null);
+    if (!url) return escapeHtml(value);
+    const linkLabel = String(label || '').trim() || 'Открыть на карте';
+    return `${link && value ? `${escapeHtml(value)} · ` : ''}<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
+}
 
-    let url;
-    try {
-        url = new URL(link);
-    } catch {
-        return '';
-    }
-
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
-    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Подробнее тут</a>`;
+function renderEventLink(value, label) {
+    const url = getHttpUrl(value);
+    if (!url) return '';
+    const linkLabel = String(label || '').trim() || 'Открыть событие';
+    return `<a class="event-location-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
 }
 
 function getNextBirthday() {
@@ -1100,7 +1094,7 @@ function renderEvents() {
     eventsList.innerHTML = visibleEvents.map((event, index) => {
         const participants = Array.isArray(event.participants) ? event.participants : [];
         const registered = hasUserRegistered(event.id);
-        const eventLink = renderEventLink(event.event_link);
+        const eventLink = renderEventLink(event.event_link, event.event_link_label);
         return `
             ${index > 0 ? '<div class="section-divider"></div>' : ''}
             <article class="event-card" data-id="${event.id}">
@@ -1113,7 +1107,7 @@ function renderEvents() {
                 <p>📋 ${escapeHtml(event.description || 'Описание события скоро появится.')}</p>
                 <div class="event-meta">
                     <span>🕒 ${escapeHtml(event.time || 'Время не указано')}</span><br>
-                    <span>📍 ${renderEventLocation(event.location || 'Место не указано')}</span><br>
+                    <span>📍 ${renderEventLocation(event.location || (event.location_link ? '' : 'Место не указано'), event.location_link, event.location_link_label)}</span><br>
                     ${eventLink ? `<span>🔗 ${eventLink}</span><br>` : ''}
                     <span  class="event-badge">✍️ ${participants.length} из ${event.maxParticipants || 50}</span>
                 </div>
