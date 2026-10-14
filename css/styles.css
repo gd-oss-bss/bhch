@@ -283,6 +283,18 @@ header {
     text-shadow: 0 0 8px rgba(255, 214, 92, 0.8);
 }
 
+.official-announcements-label {
+    width: fit-content;
+    margin: 24px auto;
+    padding: 8px 14px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 8px;
+    color: #ffd65c;
+    font-weight: 700;
+    text-align: center;
+}
+
 .nav-links .logout-link {
     width: auto;
     white-space: nowrap;
